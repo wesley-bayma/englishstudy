@@ -6,7 +6,8 @@ import { getOrCreateTodayQueue, markQueueItemCreated, skipQueueItem } from '../l
 import { ContentCard } from '../components/ContentCard';
 import { ItemDetailModal } from '../components/ItemDetailModal';
 import { EncounterModal } from '../components/EncounterModal';
-import { ProgressBar } from '../components/ProgressBar';
+import { AnkiFocusModal } from '../components/AnkiFocusModal';
+import { generateAnkiCardData } from '../lib/card-generator';
 import confetti from 'canvas-confetti';
 import { 
   CalendarDays, 
@@ -14,9 +15,11 @@ import {
   Flame, 
   RotateCcw, 
   Sparkles, 
-  Filter,
-  PlusCircle,
-  HelpCircle
+  PlayCircle,
+  Copy,
+  Check,
+  ArrowUpRight,
+  Layers
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -25,11 +28,13 @@ export default function TodayPage() {
   const [items, setItems] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTypeFilter, setActiveTypeFilter] = useState<'all' | ContentType>('all');
+  const [copiedAll, setCopiedAll] = useState(false);
   
   // Modals state
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isEncounterOpen, setIsEncounterOpen] = useState(false);
+  const [isFocusModalOpen, setIsFocusModalOpen] = useState(false);
 
   const loadQueue = async () => {
     setLoading(true);
@@ -56,9 +61,9 @@ export default function TodayPage() {
 
       if (res.queue.completed_count === res.queue.target_count && res.queue.target_count > 0) {
         confetti({
-          particleCount: 60,
-          spread: 70,
-          origin: { y: 0.7 }
+          particleCount: 80,
+          spread: 80,
+          origin: { y: 0.6 }
         });
       }
     } catch (err) {
@@ -83,6 +88,17 @@ export default function TodayPage() {
     }
   };
 
+  const handleCopyAllCards = () => {
+    const text = items.map((item, idx) => {
+      const card = generateAnkiCardData(item);
+      return `=== CARD #${idx + 1} (${item.type.toUpperCase()}) ===\nFRENTE:\n${card.front}\n\nVERSO:\n${card.back}\n\nEXPLICAÇÃO:\n${card.explanation}\n`;
+    }).join('\n----------------------------------------\n\n');
+
+    navigator.clipboard.writeText(text);
+    setCopiedAll(true);
+    setTimeout(() => setCopiedAll(false), 2500);
+  };
+
   // Category counts
   const vocabItems = items.filter(i => i.type === 'vocabulary' || i.type === 'personal_vocabulary');
   const phraseItems = items.filter(i => i.type === 'survival_phrase' || i.type === 'personal_phrase');
@@ -93,6 +109,7 @@ export default function TodayPage() {
   const pvDone = pvItems.filter(i => i.anki_status === 'created').length;
   const totalDone = (queue?.completed_count) || 0;
   const totalTarget = (queue?.target_count) || 10;
+  const progressPercent = totalTarget > 0 ? Math.round((totalDone / totalTarget) * 100) : 0;
 
   const filteredItems = activeTypeFilter === 'all' 
     ? items 
@@ -103,170 +120,170 @@ export default function TodayPage() {
       });
 
   return (
-    <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
-              <CalendarDays className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Fila de Hoje</h1>
-              <p className="text-xs text-slate-500 font-medium">
-                10 novos conteúdos para criar manualmente no Anki
-              </p>
-            </div>
+    <div className="space-y-10">
+      {/* Hero Section matching reference typography */}
+      <div className="space-y-6 pt-4">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="max-w-xl space-y-3">
+            <span className="text-xs font-mono font-bold tracking-widest text-card-lime uppercase">
+              // Rotina Diária no Anki
+            </span>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tighter text-white leading-[1.05]">
+              English is an art <br />
+              <span className="text-slate-400">and you&apos;re the curator.</span>
+            </h1>
+            <p className="text-sm text-slate-400 font-medium max-w-lg">
+              10 cards prontos com explicações linguísticas e exemplos canônicos para você criar manualmente no seu deck do Anki.
+            </p>
           </div>
 
-          <Link
-            href="/add"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold text-xs transition-colors"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span className="hidden sm:inline">Adicionar Novo</span>
-          </Link>
+          {/* Action CTAs */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
+            <button
+              onClick={() => setIsFocusModalOpen(true)}
+              className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-card-lime hover:bg-card-limeDark text-dark-bg font-black text-sm shadow-xl shadow-card-lime/10 active:scale-95 transition-all"
+            >
+              <PlayCircle className="w-4 h-4 stroke-[2.5]" />
+              Modo Foco no Anki
+              <ArrowUpRight className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={handleCopyAllCards}
+              className="flex items-center justify-center gap-2 px-5 py-3.5 rounded-full bg-dark-card hover:bg-dark-border text-slate-200 border border-dark-border font-bold text-xs transition-colors"
+            >
+              {copiedAll ? <Check className="w-4 h-4 text-card-lime" /> : <Copy className="w-4 h-4 text-slate-400" />}
+              {copiedAll ? '10 Cards Copiados!' : 'Copiar Todos os 10 Cards'}
+            </button>
+          </div>
         </div>
 
-        {/* Global Progress Bar */}
-        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
-          <ProgressBar
-            completed={totalDone}
-            total={totalTarget}
-            color="emerald"
-            label="Meta Diária Total"
-            subLabel="progresso"
-            size="md"
-          />
-
-          {/* 3 Categories Breakdown Pills */}
-          <div className="grid grid-cols-3 gap-2 pt-1">
-            {/* Vocab */}
-            <button
-              onClick={() => setActiveTypeFilter(activeTypeFilter === 'vocabulary' ? 'all' : 'vocabulary')}
-              className={`p-2 rounded-xl border text-left transition-all ${
-                activeTypeFilter === 'vocabulary'
-                  ? 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-100'
-                  : 'bg-white border-slate-200/70 hover:bg-slate-50'
-              }`}
-            >
-              <span className="text-[11px] font-semibold text-blue-600 block">Vocabulário</span>
-              <span className="text-sm font-bold font-mono text-slate-800">
-                {vocabDone}/{vocabItems.length}
-              </span>
-            </button>
-
-            {/* Frases */}
-            <button
-              onClick={() => setActiveTypeFilter(activeTypeFilter === 'survival_phrase' ? 'all' : 'survival_phrase')}
-              className={`p-2 rounded-xl border text-left transition-all ${
-                activeTypeFilter === 'survival_phrase'
-                  ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-100'
-                  : 'bg-white border-slate-200/70 hover:bg-slate-50'
-              }`}
-            >
-              <span className="text-[11px] font-semibold text-emerald-600 block">Frases</span>
-              <span className="text-sm font-bold font-mono text-slate-800">
-                {phraseDone}/{phraseItems.length}
-              </span>
-            </button>
-
-            {/* Phrasal Verbs */}
-            <button
-              onClick={() => setActiveTypeFilter(activeTypeFilter === 'phrasal_verb' ? 'all' : 'phrasal_verb')}
-              className={`p-2 rounded-xl border text-left transition-all ${
-                activeTypeFilter === 'phrasal_verb'
-                  ? 'bg-amber-50/80 border-amber-400 ring-2 ring-amber-100'
-                  : 'bg-white border-slate-200/70 hover:bg-slate-50'
-              }`}
-            >
-              <span className="text-[11px] font-semibold text-amber-700 block">Phrasal Verbs</span>
-              <span className="text-sm font-bold font-mono text-slate-800">
-                {pvDone}/{pvItems.length}
-              </span>
-            </button>
+        {/* Minimalist Underlined Stats Bar matching reference top section */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 pt-4 border-t border-dark-border/80">
+          {/* Total Progress */}
+          <div className="space-y-1">
+            <span className="text-xs font-mono text-slate-400 uppercase tracking-wider block">Meta Total</span>
+            <div className="text-2xl font-black text-white font-mono">{totalDone}/{totalTarget}</div>
+            <div className="w-full bg-dark-border h-1 rounded-full overflow-hidden mt-2">
+              <div
+                className="bg-card-lime h-full transition-all duration-500 ease-out"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
           </div>
+
+          {/* Vocab */}
+          <button
+            onClick={() => setActiveTypeFilter(activeTypeFilter === 'vocabulary' ? 'all' : 'vocabulary')}
+            className="text-left space-y-1 group"
+          >
+            <span className="text-xs font-mono text-card-pink uppercase tracking-wider block group-hover:underline">01. Vocabulário</span>
+            <div className="text-2xl font-black text-white font-mono">{vocabDone}/5</div>
+            <span className="text-[11px] text-slate-500 font-medium block">palavras diárias</span>
+          </button>
+
+          {/* Frases */}
+          <button
+            onClick={() => setActiveTypeFilter(activeTypeFilter === 'survival_phrase' ? 'all' : 'survival_phrase')}
+            className="text-left space-y-1 group"
+          >
+            <span className="text-xs font-mono text-card-lime uppercase tracking-wider block group-hover:underline">02. Frases</span>
+            <div className="text-2xl font-black text-white font-mono">{phraseDone}/3</div>
+            <span className="text-[11px] text-slate-500 font-medium block">sobrevivência prática</span>
+          </button>
+
+          {/* Phrasal Verbs */}
+          <button
+            onClick={() => setActiveTypeFilter(activeTypeFilter === 'phrasal_verb' ? 'all' : 'phrasal_verb')}
+            className="text-left space-y-1 group"
+          >
+            <span className="text-xs font-mono text-card-amber uppercase tracking-wider block group-hover:underline">03. Phrasal Verbs</span>
+            <div className="text-2xl font-black text-white font-mono">{pvDone}/2</div>
+            <span className="text-[11px] text-slate-500 font-medium block">alta frequência</span>
+          </button>
         </div>
 
         {totalDone === totalTarget && totalTarget > 0 && (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-2.5 text-xs text-emerald-800 font-medium animate-in fade-in">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+          <div className="p-4 bg-card-lime/10 border-2 border-card-lime rounded-2xl flex items-center gap-3 text-card-lime text-xs font-bold animate-in fade-in">
+            <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
             <span>
-              Parabéns! Você concluiu a meta dos 10 conteúdos de hoje no Anki. Lembre-se de manter sua rotina de revisões em dia.
+              Excelente! Meta diária de 10 cards atingida. Revise os cards no seu aplicativo do Anki ao longo do dia!
             </span>
           </div>
         )}
       </div>
 
-      {/* Category Filter Pills Bar */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-semibold">
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold">
         <button
           onClick={() => setActiveTypeFilter('all')}
-          className={`px-3.5 py-1.5 rounded-full transition-all ${
+          className={`px-4 py-2 rounded-full transition-all ${
             activeTypeFilter === 'all'
-              ? 'bg-slate-900 text-white shadow-sm'
-              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+              ? 'bg-white text-dark-bg shadow-sm'
+              : 'bg-dark-card text-slate-400 hover:text-white border border-dark-border'
           }`}
         >
-          Todos ({items.length})
+          Todos os Cards ({items.length})
         </button>
 
         <button
           onClick={() => setActiveTypeFilter('vocabulary')}
-          className={`px-3.5 py-1.5 rounded-full transition-all ${
+          className={`px-4 py-2 rounded-full transition-all ${
             activeTypeFilter === 'vocabulary'
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-50'
+              ? 'bg-card-pink text-dark-bg font-black shadow-sm'
+              : 'bg-dark-card text-card-pink hover:bg-dark-border border border-dark-border'
           }`}
         >
-          Vocabulário ({vocabItems.length})
+          Vocabulário (5)
         </button>
 
         <button
           onClick={() => setActiveTypeFilter('survival_phrase')}
-          className={`px-3.5 py-1.5 rounded-full transition-all ${
+          className={`px-4 py-2 rounded-full transition-all ${
             activeTypeFilter === 'survival_phrase'
-              ? 'bg-emerald-600 text-white shadow-sm'
-              : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50'
+              ? 'bg-card-lime text-dark-bg font-black shadow-sm'
+              : 'bg-dark-card text-card-lime hover:bg-dark-border border border-dark-border'
           }`}
         >
-          Frases ({phraseItems.length})
+          Frases (3)
         </button>
 
         <button
           onClick={() => setActiveTypeFilter('phrasal_verb')}
-          className={`px-3.5 py-1.5 rounded-full transition-all ${
+          className={`px-4 py-2 rounded-full transition-all ${
             activeTypeFilter === 'phrasal_verb'
-              ? 'bg-amber-600 text-white shadow-sm'
-              : 'bg-white text-amber-800 border border-amber-200 hover:bg-amber-50'
+              ? 'bg-card-amber text-dark-bg font-black shadow-sm'
+              : 'bg-dark-card text-card-amber hover:bg-dark-border border border-dark-border'
           }`}
         >
-          Phrasal Verbs ({pvItems.length})
+          Phrasal Verbs (2)
         </button>
       </div>
 
-      {/* Items List */}
+      {/* Modern Vibrant Cards Grid */}
       {loading ? (
-        <div className="py-12 text-center text-slate-400 text-sm font-medium">
-          Carregando fila diária...
+        <div className="py-20 text-center text-slate-500 font-mono text-sm">
+          // Carregando cards de hoje...
         </div>
       ) : filteredItems.length === 0 ? (
-        <div className="bg-white rounded-3xl p-8 text-center border border-slate-200 space-y-3">
-          <p className="text-slate-500 text-sm">Nenhum item nesta categoria hoje.</p>
+        <div className="bg-dark-card rounded-[32px] p-12 text-center border border-dark-border space-y-3">
+          <p className="text-slate-400 text-sm">Nenhum card pendente nesta categoria.</p>
           <button
             onClick={() => setActiveTypeFilter('all')}
-            className="text-xs font-semibold text-blue-600 hover:underline"
+            className="text-xs font-bold text-card-lime hover:underline"
           >
-            Ver todos os 10 itens
+            Ver todos os 10 cards
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-          {filteredItems.map((item) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+          {filteredItems.map((item, idx) => (
             <ContentCard
               key={item.id}
               item={item}
+              index={idx + 1}
               isInDailyQueue={true}
+              defaultExpandedCard={true}
               onMarkCreated={handleMarkCreated}
               onSkip={handleSkip}
               onViewDetails={(it) => {
@@ -281,6 +298,15 @@ export default function TodayPage() {
           ))}
         </div>
       )}
+
+      {/* Step-by-Step Focus Modal */}
+      <AnkiFocusModal
+        items={items}
+        isOpen={isFocusModalOpen}
+        onClose={() => setIsFocusModalOpen(false)}
+        onMarkCreated={handleMarkCreated}
+        onSkipItem={handleSkip}
+      />
 
       {/* Item Detail Modal */}
       <ItemDetailModal

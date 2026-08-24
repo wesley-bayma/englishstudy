@@ -55,44 +55,42 @@ export default function ReviewerPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
+    <div className="space-y-8 max-w-2xl mx-auto pt-4">
       {/* Header */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
-              <CheckSquare className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Revisar Meu Card</h1>
-              <p className="text-xs text-slate-500 font-medium">
-                Avaliação de qualidade segundo as regras canônicas do seu banco
-              </p>
-            </div>
-          </div>
+      <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-6">
+        <div className="space-y-2">
+          <span className="text-xs font-mono font-bold tracking-widest text-card-lime uppercase">
+            // Avaliação Canônica de Flashcards
+          </span>
+          <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+            Revisar Meu Card
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-400 font-medium">
+            Verifique se seu card atende aos critérios de recuperação ativa antes de salvar no Anki.
+          </p>
         </div>
 
-        {/* Quick Canonical Examples Row */}
-        <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 space-y-2">
-          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-            Carregar exemplos canônicos para teste:
+        {/* Example Pills */}
+        <div className="bg-dark-bg p-4 rounded-2xl border border-dark-border space-y-2">
+          <span className="text-[11px] font-mono font-bold text-slate-400 uppercase tracking-wider block">
+            Carregar exemplos canônicos:
           </span>
           <div className="flex items-center gap-2 flex-wrap text-xs">
             <button
               onClick={() => loadExample('vocabulary')}
-              className="px-3 py-1 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 font-semibold transition-colors"
+              className="px-3.5 py-1.5 rounded-full bg-card-pink text-dark-bg font-black hover:brightness-105 transition-all"
             >
               Vocabulário
             </button>
             <button
               onClick={() => loadExample('survival_phrase')}
-              className="px-3 py-1 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 font-semibold transition-colors"
+              className="px-3.5 py-1.5 rounded-full bg-card-lime text-dark-bg font-black hover:brightness-105 transition-all"
             >
               Frase
             </button>
             <button
               onClick={() => loadExample('phrasal_verb')}
-              className="px-3 py-1 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 font-semibold transition-colors"
+              className="px-3.5 py-1.5 rounded-full bg-card-amber text-dark-bg font-black hover:brightness-105 transition-all"
             >
               Phrasal Verb
             </button>
@@ -100,16 +98,16 @@ export default function ReviewerPage() {
         </div>
 
         {/* Input Form */}
-        <form onSubmit={handleReview} className="space-y-4">
+        <form onSubmit={handleReview} className="space-y-5">
           {/* Card Type Selector */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+            <label className="block text-xs font-mono font-bold text-slate-300 uppercase tracking-wider mb-2">
               Tipo do Card
             </label>
             <div className="grid grid-cols-3 gap-2">
               {[
-                { id: 'vocabulary' as ContentType, label: 'Vocabulário', color: 'blue' },
-                { id: 'survival_phrase' as ContentType, label: 'Frase', color: 'emerald' },
+                { id: 'vocabulary' as ContentType, label: 'Vocabulário', color: 'pink' },
+                { id: 'survival_phrase' as ContentType, label: 'Frase', color: 'lime' },
                 { id: 'phrasal_verb' as ContentType, label: 'Phrasal Verb', color: 'amber' },
               ].map((t) => {
                 const isSel = type === t.id;
@@ -118,14 +116,14 @@ export default function ReviewerPage() {
                     type="button"
                     key={t.id}
                     onClick={() => setType(t.id)}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                    className={`py-2.5 px-3 rounded-2xl text-xs font-black border transition-all ${
                       isSel 
-                        ? t.color === 'blue'
-                          ? 'bg-blue-50 border-blue-500 text-blue-700 ring-2 ring-blue-100'
-                          : t.color === 'emerald'
-                            ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-100'
-                            : 'bg-amber-50 border-amber-500 text-amber-700 ring-2 ring-amber-100'
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        ? t.color === 'pink'
+                          ? 'bg-card-pink text-dark-bg border-card-pink ring-2 ring-card-pink/20'
+                          : t.color === 'lime'
+                            ? 'bg-card-lime text-dark-bg border-card-lime ring-2 ring-card-lime/20'
+                            : 'bg-card-amber text-dark-bg border-card-amber ring-2 ring-card-amber/20'
+                        : 'bg-dark-bg border-dark-border text-slate-400 hover:text-white'
                     }`}
                   >
                     {t.label}
@@ -135,9 +133,9 @@ export default function ReviewerPage() {
             </div>
           </div>
 
-          {/* FRONT Field */}
+          {/* FRONT */}
           <div>
-            <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">
+            <label className="block text-xs font-mono font-bold text-slate-300 uppercase tracking-wider mb-1">
               Frente do Card (Front)
             </label>
             <textarea
@@ -145,13 +143,13 @@ export default function ReviewerPage() {
               placeholder="Cole o que você colocou na frente do flashcard..."
               value={front}
               onChange={(e) => setFront(e.target.value)}
-              className="w-full p-3.5 rounded-2xl border border-slate-200 focus:border-indigo-500 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-slate-400 resize-none"
+              className="w-full p-4 rounded-2xl bg-dark-bg border border-dark-border focus:border-card-lime text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-card-lime/10 transition-all placeholder:text-slate-500 resize-none"
             />
           </div>
 
-          {/* BACK Field */}
+          {/* BACK */}
           <div>
-            <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">
+            <label className="block text-xs font-mono font-bold text-slate-300 uppercase tracking-wider mb-1">
               Verso do Card (Back)
             </label>
             <textarea
@@ -159,19 +157,19 @@ export default function ReviewerPage() {
               placeholder="Cole o que você colocou no verso do flashcard..."
               value={back}
               onChange={(e) => setBack(e.target.value)}
-              className="w-full p-3.5 rounded-2xl border border-slate-200 focus:border-indigo-500 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-slate-400 resize-none"
+              className="w-full p-4 rounded-2xl bg-dark-bg border border-dark-border focus:border-card-lime text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-card-lime/10 transition-all placeholder:text-slate-500 resize-none"
             />
           </div>
 
           <button
             type="submit"
             disabled={!front.trim() || !back.trim() || isReviewing}
-            className="w-full py-3.5 px-5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white font-bold text-sm shadow-md shadow-indigo-500/20 active:scale-98 transition-all flex items-center justify-center gap-2"
+            className="w-full py-4 px-6 rounded-full bg-card-lime hover:bg-card-limeDark disabled:bg-dark-border disabled:text-slate-500 text-dark-bg font-black text-sm shadow-xl shadow-card-lime/10 active:scale-98 transition-all flex items-center justify-center gap-2"
           >
             {isReviewing ? (
               <>
                 <Sparkles className="w-4 h-4 animate-spin" />
-                Avaliando card com Gemini Flash...
+                Avaliando com Gemini Flash...
               </>
             ) : (
               <>
@@ -185,50 +183,42 @@ export default function ReviewerPage() {
 
       {/* Review Feedback Result */}
       {result && (
-        <div className={`rounded-3xl p-6 border-2 shadow-sm space-y-4 animate-in fade-in duration-200 ${
+        <div className={`rounded-[32px] p-6 sm:p-7 border-2 shadow-2xl space-y-4 animate-in fade-in duration-200 ${
           result.status === 'good'
-            ? 'bg-emerald-50/90 border-emerald-300'
+            ? 'bg-dark-card border-card-lime text-slate-200'
             : result.status === 'improvable'
-              ? 'bg-amber-50/90 border-amber-300'
-              : 'bg-rose-50/90 border-rose-300'
+              ? 'bg-dark-card border-card-amber text-slate-200'
+              : 'bg-dark-card border-rose-500 text-slate-200'
         }`}>
-          {/* Header Status */}
-          <div className="flex items-center justify-between pb-3 border-b border-black/5">
-            <div className="flex items-center gap-2">
-              <span className={`text-base font-black px-3.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm ${
-                result.status === 'good'
-                  ? 'bg-emerald-600 text-white'
-                  : result.status === 'improvable'
-                    ? 'bg-amber-600 text-white'
-                    : 'bg-rose-600 text-white'
-              }`}>
-                {result.status_label}
-              </span>
-            </div>
-            <span className="text-xs font-mono font-bold text-slate-700">
-              Pontuação: {result.score}/100
+          <div className="flex items-center justify-between pb-3 border-b border-dark-border">
+            <span className={`text-sm font-black px-4 py-1 rounded-full ${
+              result.status === 'good'
+                ? 'bg-card-lime text-dark-bg'
+                : result.status === 'improvable'
+                  ? 'bg-card-amber text-dark-bg'
+                  : 'bg-rose-600 text-white'
+            }`}>
+              {result.status_label}
+            </span>
+            <span className="text-xs font-mono font-bold text-slate-400">
+              Nota: {result.score}/100
             </span>
           </div>
 
           {result.summary && (
-            <p className="text-sm font-semibold text-slate-800">
+            <p className="text-sm font-bold text-white">
               {result.summary}
             </p>
           )}
 
-          {/* Observations (Max 3) */}
-          <div className="bg-white/80 rounded-2xl p-4 border border-black/5 space-y-2">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-              Observações Práticas (Máx. 3):
+          <div className="bg-dark-bg p-4 rounded-2xl border border-dark-border space-y-2">
+            <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest block">
+              Observações (Máx. 3):
             </span>
             <ul className="space-y-2">
               {result.observations.map((obs, idx) => (
-                <li key={idx} className="text-xs text-slate-800 flex items-start gap-2">
-                  <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5 ${
-                    result.status === 'good' 
-                      ? 'bg-emerald-100 text-emerald-700' 
-                      : 'bg-amber-100 text-amber-700'
-                  }`}>
+                <li key={idx} className="text-xs text-slate-300 flex items-start gap-2.5">
+                  <span className="w-4 h-4 rounded-full bg-dark-card border border-dark-border flex items-center justify-center text-[10px] font-mono font-bold text-card-lime flex-shrink-0 mt-0.5">
                     {idx + 1}
                   </span>
                   <span>{obs}</span>
@@ -240,16 +230,16 @@ export default function ReviewerPage() {
       )}
 
       {/* Rules Summary Box */}
-      <div className="bg-white rounded-3xl p-5 border border-slate-200/80 text-xs text-slate-600 space-y-2">
-        <strong className="text-slate-800 font-bold flex items-center gap-1.5">
-          <Lightbulb className="w-4 h-4 text-amber-500" />
-          Critérios Canônicos de um Bom Flashcard
+      <div className="bg-dark-card rounded-[32px] p-6 border border-dark-border text-xs text-slate-400 space-y-3">
+        <strong className="text-white font-bold flex items-center gap-2">
+          <Lightbulb className="w-4 h-4 text-card-amber" />
+          Critérios de Ouro para Flashcards no Anki
         </strong>
-        <ul className="space-y-1 text-slate-500 list-disc list-inside">
-          <li><strong>Um único alvo por card</strong> — não teste duas palavras novas ao mesmo tempo.</li>
-          <li><strong>Frases curtas</strong> — preferência por frases naturais de 5 a 7 palavras.</li>
-          <li><strong>Recuperação ativa</strong> — a frente deve obrigar sua mente a resgatar o inglês.</li>
-          <li><strong>Áudio sempre no VERSO</strong> — evita que o ouvido receba spoiler antes da tentativa.</li>
+        <ul className="space-y-1.5 list-disc list-inside text-slate-400 leading-relaxed font-mono text-[11px]">
+          <li>1 único alvo por card.</li>
+          <li>Frases curtas (5–7 palavras) para fluidez.</li>
+          <li>Recuperação ativa forçada (dica como gatilho, não resposta).</li>
+          <li>Áudio sempre no VERSO (confirmação, nunca spoiler).</li>
         </ul>
       </div>
     </div>

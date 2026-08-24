@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { getStudyHubStats } from '../../lib/db';
 import { exportToJSON, exportToCSV, validateImportData, commitImport, ImportValidationReport } from '../../lib/export-import';
 import { getStoredApiKey, setStoredApiKey } from '../../lib/gemini';
-import { ProgressBar } from '../../components/ProgressBar';
 import { 
   BarChart3, 
   Download, 
@@ -25,11 +24,11 @@ export default function ProgressPage() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Settings state
+  // Settings
   const [apiKey, setApiKey] = useState('');
   const [isApiKeySaved, setIsApiKeySaved] = useState(false);
 
-  // Import state
+  // Import
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importReport, setImportReport] = useState<ImportValidationReport | null>(null);
   const [isImporting, setIsImporting] = useState(false);
@@ -114,190 +113,162 @@ export default function ProgressPage() {
 
   if (loading || !stats) {
     return (
-      <div className="py-12 text-center text-slate-400 text-sm font-medium">
-        Carregando métricas e progresso...
+      <div className="py-20 text-center text-slate-500 font-mono text-sm">
+        // Carregando métricas...
       </div>
     );
   }
 
+  const vocabPercent = Math.round((stats.base.vocab.created / stats.base.vocab.total) * 100) || 0;
+  const phrasePercent = Math.round((stats.base.phrases.created / stats.base.phrases.total) * 100) || 0;
+  const pvPercent = Math.round((stats.base.phrasal_verbs.created / stats.base.phrasal_verbs.total) * 100) || 0;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pt-4">
       {/* Header */}
-      <div className="flex items-center gap-3 bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-        <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
-          <BarChart3 className="w-5 h-5" />
-        </div>
-        <div>
-          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Progresso & Configurações</h1>
-          <p className="text-xs text-slate-500 font-medium">
-            Acompanhamento real da conversão manual para o Anki
-          </p>
-        </div>
+      <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-2">
+        <span className="text-xs font-mono font-bold tracking-widest text-card-lime uppercase">
+          // Métricas & Backup Soberano
+        </span>
+        <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+          Progresso de Conversão
+        </h1>
+        <p className="text-xs sm:text-sm text-slate-400 font-medium">
+          Acompanhamento dos 3.250 conteúdos canônicos e novos achados transformados em cards no Anki.
+        </p>
       </div>
 
-      {/* 1. BASE CANÔNICA STATS */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <Layers className="w-4 h-4 text-blue-600" />
+      {/* 1. BASE CANÔNICA METRICS */}
+      <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-6">
+        <div className="flex items-center justify-between pb-4 border-b border-dark-border">
+          <h2 className="text-xl font-black text-white flex items-center gap-2.5">
+            <Layers className="w-5 h-5 text-card-lime" />
             Banco Principal (BASE)
           </h2>
-          <span className="text-xs text-slate-500 font-medium">3.250 itens canônicos</span>
+          <span className="text-xs font-mono text-slate-400">3.250 itens originais</span>
         </div>
 
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {/* Vocab */}
-          <div className="bg-blue-50/50 p-3.5 rounded-2xl border border-blue-100 space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <strong className="text-blue-900 font-semibold">Vocabulário</strong>
-              <span className="font-mono text-blue-700 font-bold">
-                {stats.base.vocab.created} / {stats.base.vocab.total} cards criados
-              </span>
+          <div className="bg-dark-bg p-5 rounded-2xl border border-dark-border space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono font-bold text-card-pink uppercase">Vocabulário</span>
+              <span className="text-xs font-mono text-slate-400 font-bold">{vocabPercent}%</span>
             </div>
-            <ProgressBar
-              completed={stats.base.vocab.created}
-              total={stats.base.vocab.total}
-              color="blue"
-              size="md"
-            />
+            <div className="text-2xl font-black text-white font-mono">
+              {stats.base.vocab.created} <span className="text-sm font-normal text-slate-500">/ {stats.base.vocab.total}</span>
+            </div>
+            <div className="w-full bg-dark-border h-1.5 rounded-full overflow-hidden">
+              <div className="bg-card-pink h-full transition-all duration-500" style={{ width: `${vocabPercent}%` }} />
+            </div>
           </div>
 
           {/* Phrases */}
-          <div className="bg-emerald-50/50 p-3.5 rounded-2xl border border-emerald-100 space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <strong className="text-emerald-900 font-semibold">Frases de Sobrevivência</strong>
-              <span className="font-mono text-emerald-700 font-bold">
-                {stats.base.phrases.created} / {stats.base.phrases.total} cards criados
-              </span>
+          <div className="bg-dark-bg p-5 rounded-2xl border border-dark-border space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono font-bold text-card-lime uppercase">Frases</span>
+              <span className="text-xs font-mono text-slate-400 font-bold">{phrasePercent}%</span>
             </div>
-            <ProgressBar
-              completed={stats.base.phrases.created}
-              total={stats.base.phrases.total}
-              color="emerald"
-              size="md"
-            />
+            <div className="text-2xl font-black text-white font-mono">
+              {stats.base.phrases.created} <span className="text-sm font-normal text-slate-500">/ {stats.base.phrases.total}</span>
+            </div>
+            <div className="w-full bg-dark-border h-1.5 rounded-full overflow-hidden">
+              <div className="bg-card-lime h-full transition-all duration-500" style={{ width: `${phrasePercent}%` }} />
+            </div>
           </div>
 
           {/* Phrasal Verbs */}
-          <div className="bg-amber-50/50 p-3.5 rounded-2xl border border-amber-100 space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <strong className="text-amber-900 font-semibold">Phrasal Verbs Mais Frequentes</strong>
-              <span className="font-mono text-amber-700 font-bold">
-                {stats.base.phrasal_verbs.created} / {stats.base.phrasal_verbs.total} cards criados
-              </span>
+          <div className="bg-dark-bg p-5 rounded-2xl border border-dark-border space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono font-bold text-card-amber uppercase">Phrasal Verbs</span>
+              <span className="text-xs font-mono text-slate-400 font-bold">{pvPercent}%</span>
             </div>
-            <ProgressBar
-              completed={stats.base.phrasal_verbs.created}
-              total={stats.base.phrasal_verbs.total}
-              color="amber"
-              size="md"
-            />
+            <div className="text-2xl font-black text-white font-mono">
+              {stats.base.phrasal_verbs.created} <span className="text-sm font-normal text-slate-500">/ {stats.base.phrasal_verbs.total}</span>
+            </div>
+            <div className="w-full bg-dark-border h-1.5 rounded-full overflow-hidden">
+              <div className="bg-card-amber h-full transition-all duration-500" style={{ width: `${pvPercent}%` }} />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* 2. INBOX & NATURAL ENCOUNTERS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Inbox Stats */}
-        <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-              <FileText className="w-4 h-4 text-indigo-600" />
-              Meus Achados (INBOX)
-            </h2>
-            <span className="text-xs text-slate-500 font-mono">{stats.inbox.total} adicionados</span>
+      {/* 2. INBOX & ENCOUNTERS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-4">
+          <span className="text-xs font-mono font-bold text-card-lime uppercase block">
+            // Meus Achados (Inbox)
+          </span>
+          <div className="flex items-baseline gap-2">
+            <div className="text-4xl font-black text-white font-mono">{stats.inbox.total}</div>
+            <span className="text-xs text-slate-400 font-medium">conteúdos adicionados</span>
           </div>
-
-          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-600 font-medium">Transformados em cards:</span>
-              <strong className="text-indigo-700 font-mono font-bold">
-                {stats.inbox.created} / {stats.inbox.total}
-              </strong>
-            </div>
-            <ProgressBar
-              completed={stats.inbox.created}
-              total={stats.inbox.total || 1}
-              color="indigo"
-              size="sm"
-            />
-          </div>
+          <p className="text-xs text-slate-400">
+            {stats.inbox.created} já transformados manualmente em cards no Anki.
+          </p>
         </div>
 
-        {/* Encounters This Week */}
-        <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-              <Flame className="w-4 h-4 text-rose-500 fill-rose-500" />
-              Encontros Naturais Esta Semana
-            </h2>
-            <span className="text-xs bg-rose-50 text-rose-600 px-2 py-0.5 rounded-full font-bold">
-              {stats.encountersThisWeek} registros
-            </span>
+        <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-4">
+          <span className="text-xs font-mono font-bold text-rose-400 uppercase block flex items-center gap-1.5">
+            <Flame className="w-4 h-4 fill-rose-400" />
+            Encontros Naturais Esta Semana
+          </span>
+          <div className="flex items-baseline gap-2">
+            <div className="text-4xl font-black text-white font-mono">{stats.encountersThisWeek}</div>
+            <span className="text-xs text-slate-400 font-medium">vezes encontrados em vídeos e podcasts</span>
           </div>
-
-          <p className="text-xs text-slate-500">
-            Palavras e frases que você encontrou em vídeos, áudios, livros e podcasts nos últimos 7 dias.
-          </p>
-
           {stats.topEncountered.length > 0 && (
-            <div className="space-y-1.5 pt-1">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Top Mais Encontrados:</span>
-              <div className="flex flex-wrap gap-1.5">
-                {stats.topEncountered.slice(0, 5).map((top: any) => (
-                  <span key={top.id} className="text-xs font-semibold px-2.5 py-1 rounded-xl bg-slate-100 text-slate-800 flex items-center gap-1 border border-slate-200/60">
-                    {top.content}
-                    <span className="text-rose-600 text-[10px]">({top.times_encountered}x)</span>
-                  </span>
-                ))}
-              </div>
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {stats.topEncountered.slice(0, 4).map((top: any) => (
+                <span key={top.id} className="text-xs font-bold px-3 py-1 rounded-full bg-dark-bg text-slate-200 border border-dark-border flex items-center gap-1 font-mono">
+                  {top.content}
+                  <span className="text-rose-400 text-[10px]">({top.times_encountered}x)</span>
+                </span>
+              ))}
             </div>
           )}
         </div>
       </div>
 
       {/* 3. BACKUP & EXPORTAÇÃO */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-        <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-          <Download className="w-4 h-4 text-slate-700" />
-          Exportação & Backup dos Seus Dados
+      <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-4">
+        <h2 className="text-xl font-black text-white flex items-center gap-2.5">
+          <Download className="w-5 h-5 text-slate-400" />
+          Exportação & Soberania dos Dados
         </h2>
-        <p className="text-xs text-slate-500">
-          Você tem total soberania sobre seus dados. Exporte todo o banco, status do Anki e histórico de encontros a qualquer momento.
+        <p className="text-xs text-slate-400 max-w-xl">
+          Faça backup de todo o seu banco a qualquer momento em JSON ou CSV.
         </p>
 
-        <div className="flex items-center gap-3 flex-wrap pt-1">
+        <div className="flex items-center gap-3 flex-wrap pt-2">
           <button
             onClick={handleExportJSON}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-md shadow-slate-900/10 active:scale-95 transition-all"
+            className="flex items-center gap-2 px-6 py-3.5 rounded-full bg-white hover:bg-slate-200 text-dark-bg font-black text-xs shadow-lg active:scale-95 transition-all"
           >
             <Download className="w-4 h-4" />
-            Exportar Backup Completo (JSON)
+            Exportar Backup JSON
           </button>
 
           <button
             onClick={handleExportCSV}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors"
+            className="flex items-center gap-2 px-6 py-3.5 rounded-full bg-dark-bg hover:bg-dark-border text-slate-200 border border-dark-border font-bold text-xs transition-colors"
           >
-            <FileText className="w-4 h-4 text-slate-500" />
-            Exportar Planilha (CSV)
+            <FileText className="w-4 h-4 text-slate-400" />
+            Exportar Planilha CSV
           </button>
         </div>
       </div>
 
-      {/* 4. IMPORTAÇÃO DE CONTEÚDO */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-        <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-          <Upload className="w-4 h-4 text-slate-700" />
-          Importar Conteúdo Externo
+      {/* 4. IMPORTAÇÃO */}
+      <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-4">
+        <h2 className="text-xl font-black text-white flex items-center gap-2.5">
+          <Upload className="w-5 h-5 text-slate-400" />
+          Importar Arquivo Externo
         </h2>
-        <p className="text-xs text-slate-500">
-          Importe novos itens via arquivo JSON ou CSV. O sistema verificará duplicatas e validará a estrutura antes de confirmar.
-        </p>
 
         {importSuccess && (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-800 font-semibold flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          <div className="p-3.5 bg-card-lime/10 border border-card-lime/30 rounded-2xl text-xs text-card-lime font-bold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4" />
             {importSuccess}
           </div>
         )}
@@ -307,28 +278,28 @@ export default function ProgressPage() {
             type="file"
             accept=".json,.csv"
             onChange={handleFileChange}
-            className="block w-full text-xs text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+            className="block w-full text-xs text-slate-400 file:mr-4 file:py-3 file:px-5 file:rounded-full file:border-0 file:text-xs file:font-black file:bg-dark-bg file:text-card-lime hover:file:bg-dark-border cursor-pointer font-mono"
           />
 
           {importReport && (
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs space-y-2.5 animate-in fade-in">
-              <strong className="text-slate-800 block">Relatório Pré-Importação:</strong>
+            <div className="bg-dark-bg p-5 rounded-2xl border border-dark-border text-xs space-y-3 animate-in fade-in font-mono">
+              <strong className="text-white block font-sans text-sm">Relatório Pré-Importação:</strong>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <div className="bg-white p-2.5 rounded-xl border border-slate-200">
-                  <span className="text-slate-400 block text-[10px]">Total lido</span>
-                  <strong className="text-slate-800 text-sm">{importReport.total_rows}</strong>
+                <div className="bg-dark-card p-3 rounded-xl border border-dark-border">
+                  <span className="text-slate-500 block text-[10px]">Total Lido</span>
+                  <strong className="text-white text-base">{importReport.total_rows}</strong>
                 </div>
-                <div className="bg-white p-2.5 rounded-xl border border-emerald-200 text-emerald-700">
-                  <span className="text-emerald-500 block text-[10px]">Novos itens</span>
-                  <strong className="text-sm">{importReport.new_count}</strong>
+                <div className="bg-dark-card p-3 rounded-xl border border-card-lime/30 text-card-lime">
+                  <span className="text-slate-500 block text-[10px]">Novos</span>
+                  <strong className="text-base">{importReport.new_count}</strong>
                 </div>
-                <div className="bg-white p-2.5 rounded-xl border border-amber-200 text-amber-700">
-                  <span className="text-amber-500 block text-[10px]">Já existem</span>
-                  <strong className="text-sm">{importReport.duplicate_count}</strong>
+                <div className="bg-dark-card p-3 rounded-xl border border-card-amber/30 text-card-amber">
+                  <span className="text-slate-500 block text-[10px]">Duplicados</span>
+                  <strong className="text-base">{importReport.duplicate_count}</strong>
                 </div>
-                <div className="bg-white p-2.5 rounded-xl border border-rose-200 text-rose-700">
-                  <span className="text-rose-500 block text-[10px]">Inválidos</span>
-                  <strong className="text-sm">{importReport.invalid_count}</strong>
+                <div className="bg-dark-card p-3 rounded-xl border border-rose-500/30 text-rose-400">
+                  <span className="text-slate-500 block text-[10px]">Inválidos</span>
+                  <strong className="text-base">{importReport.invalid_count}</strong>
                 </div>
               </div>
 
@@ -336,7 +307,7 @@ export default function ProgressPage() {
                 <button
                   onClick={handleConfirmImport}
                   disabled={isImporting}
-                  className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-500/20 active:scale-95 transition-all mt-2"
+                  className="w-full py-3 px-5 rounded-full bg-card-lime hover:bg-card-limeDark text-dark-bg font-black text-xs shadow-lg active:scale-95 transition-all mt-2"
                 >
                   {isImporting ? 'Importando...' : `Confirmar Importação de ${importReport.new_count} Novos Itens`}
                 </button>
@@ -346,37 +317,29 @@ export default function ProgressPage() {
         </div>
       </div>
 
-      {/* 5. CONFIGURAÇÕES DA API GEMINI FLASH */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center gap-2">
-          <Key className="w-4 h-4 text-indigo-600" />
-          <h2 className="text-base font-bold text-slate-900">Configurações de IA (Gemini Flash)</h2>
-        </div>
-        <p className="text-xs text-slate-500">
-          Sua chave de API do Google Gemini é armazenada de forma estritamente local no seu navegador. O sistema nunca gasta chamadas para comparações exatas simples.
+      {/* 5. CONFIGURAÇÕES GEMINI FLASH */}
+      <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-4">
+        <h2 className="text-xl font-black text-white flex items-center gap-2.5">
+          <Key className="w-5 h-5 text-card-lime" />
+          Configuração de IA (Gemini Flash)
+        </h2>
+        <p className="text-xs text-slate-400">
+          Chave armazenada localmente no seu dispositivo.
         </p>
 
         <form onSubmit={handleSaveApiKey} className="space-y-3">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Chave de API do Gemini (Google AI Studio)
-            </label>
-            <input
-              type="password"
-              placeholder="AIzaSy..."
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono"
-            />
-          </div>
+          <input
+            type="password"
+            placeholder="AIzaSy..."
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            className="w-full px-4 py-3 rounded-2xl bg-dark-bg border border-dark-border text-white text-sm font-mono focus:outline-none focus:border-card-lime"
+          />
 
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-[11px] text-slate-400">
-              Usa Gemini Flash com respostas JSON estruturadas.
-            </span>
+          <div className="flex items-center justify-end pt-1">
             <button
               type="submit"
-              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-500/20 active:scale-95 transition-all"
+              className="flex items-center gap-1.5 px-6 py-3 bg-card-lime hover:bg-card-limeDark text-dark-bg rounded-full text-xs font-black shadow-lg active:scale-95 transition-all"
             >
               {isApiKeySaved ? (
                 <>

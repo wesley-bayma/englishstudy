@@ -32,13 +32,13 @@ export default function AddPage() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [hasVerified, setHasVerified] = useState(false);
 
-  // Verification results
+  // Results
   const [exactMatch, setExactMatch] = useState<ContentItem | null>(null);
   const [aiMatch, setAiMatch] = useState<GeminiAnalysisResult | null>(null);
   const [candidateItem, setCandidateItem] = useState<ContentItem | null>(null);
   const [forceShowAddForm, setForceShowAddForm] = useState(false);
 
-  // New item form fields
+  // Form fields
   const [contentType, setContentType] = useState<ContentType>('vocabulary');
   const [source, setSource] = useState<ContentSource>('youtube');
   const [sourceDetail, setSourceDetail] = useState('');
@@ -80,39 +80,32 @@ export default function AddPage() {
     setSuccessMessage(null);
 
     try {
-      // 1. DETERMINISTIC LOCAL SEARCH FIRST (0ms latency, zero AI cost)
+      // 1. DETERMINISTIC LOCAL SEARCH (0ms)
       const exact = await findExact(clean);
       if (exact) {
         setExactMatch(exact);
         setHasVerified(true);
         setIsVerifying(false);
-        return; // Done without AI
+        return;
       }
 
-      // 2. Local Candidate search for morphology / phrases
+      // 2. Candidate morphology check
       const db = getDB();
       const norm = normalizeContent(clean);
       const lemmaCandidates = getBasicLemmaCandidates(norm);
 
-      // Find if any candidate exists in DB
       let matchedCandidate: ContentItem | null = null;
       if (lemmaCandidates.length > 0) {
         const found = await db.content_items
           .where('normalized_content')
           .anyOf(lemmaCandidates)
           .first();
-        if (found) {
-          matchedCandidate = found;
-        }
+        if (found) matchedCandidate = found;
       }
 
-      // If no morphological candidate, search for potential phrase candidates sharing key words
       const candidateListForAI: string[] = [];
-      if (matchedCandidate) {
-        candidateListForAI.push(matchedCandidate.content);
-      }
+      if (matchedCandidate) candidateListForAI.push(matchedCandidate.content);
 
-      // Add a few phrase / vocab candidates if relevant
       if (clean.includes(' ')) {
         const words = norm.split(' ').filter(w => w.length > 3);
         if (words.length > 0) {
@@ -130,11 +123,10 @@ export default function AddPage() {
         }
       }
 
-      // 3. CALL GEMINI FLASH FOR VARIANT / SEMANTIC ANALYSIS
+      // 3. GEMINI FLASH STRUCTURED CALL
       const aiResult = await analyzeWithGemini(clean, candidateListForAI, contextSentence);
       setAiMatch(aiResult);
 
-      // If AI identified a match to an existing item, retrieve that item from DB
       if (aiResult.has_possible_match && aiResult.matched_existing_content) {
         const matchInDb = await findExact(aiResult.matched_existing_content);
         setCandidateItem(matchInDb || matchedCandidate);
@@ -142,7 +134,6 @@ export default function AddPage() {
         setCandidateItem(matchedCandidate);
       }
 
-      // Auto-populate form suggestions if adding
       setContentType(aiResult.classification || (clean.split(' ').length > 3 ? 'survival_phrase' : 'vocabulary'));
       setMeaningPt(aiResult.meaning_pt || '');
       if (aiResult.suggested_example && !contextSentence) {
@@ -179,7 +170,6 @@ export default function AddPage() {
       });
 
       setSuccessMessage(`"${saved.content}" foi adicionado com sucesso à sua Inbox!`);
-      // Reset form
       setQuery('');
       setHasVerified(false);
       setExactMatch(null);
@@ -198,54 +188,44 @@ export default function AddPage() {
     }
   };
 
-  const handleRegisterEncounterOnExisting = (item: ContentItem) => {
-    setSelectedItem(item);
-    setIsEncounterOpen(true);
-  };
-
-  const handleViewExisting = (item: ContentItem) => {
-    setSelectedItem(item);
-    setIsDetailOpen(true);
-  };
-
   const isDuplicateOrVariant = exactMatch || (aiMatch?.has_possible_match && candidateItem);
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
+    <div className="space-y-8 max-w-2xl mx-auto pt-4">
       {/* Header */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-            <PlusCircle className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Adicionar à Inbox</h1>
-            <p className="text-xs text-slate-500 font-medium">
-              Verifique duplicatas e registre novos achados em menos de 15 segundos
-            </p>
-          </div>
+      <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-6">
+        <div className="space-y-2">
+          <span className="text-xs font-mono font-bold tracking-widest text-card-lime uppercase">
+            // Curadoria Rápida & Inbox
+          </span>
+          <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+            Adicionar Novo Conteúdo
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-400 font-medium">
+            Verifique instantaneamente no banco antes de registrar.
+          </p>
         </div>
 
         {/* Success Alert */}
         {successMessage && (
-          <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-xs text-emerald-800 font-semibold animate-in fade-in">
+          <div className="p-4 bg-card-lime/10 border border-card-lime/30 rounded-2xl flex items-center justify-between text-xs text-card-lime font-bold animate-in fade-in">
             <div className="flex items-center gap-2">
-              <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />
+              <Check className="w-4 h-4 stroke-[3]" />
               <span>{successMessage}</span>
             </div>
             <button 
               onClick={() => router.push('/bank')}
-              className="text-xs text-emerald-700 hover:underline font-bold"
+              className="text-xs text-white hover:underline font-bold"
             >
               Ver no Banco &rarr;
             </button>
           </div>
         )}
 
-        {/* Primary Input Box */}
-        <form onSubmit={handleVerify} className="space-y-3">
+        {/* Input Box */}
+        <form onSubmit={handleVerify} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-mono font-bold text-slate-300 uppercase tracking-wider mb-2">
               O que você encontrou?
             </label>
             <div className="relative">
@@ -257,17 +237,17 @@ export default function AddPage() {
                   setQuery(e.target.value);
                   if (hasVerified) setHasVerified(false);
                 }}
-                className="w-full px-4 py-3.5 pl-11 rounded-2xl border-2 border-slate-200 focus:border-blue-500 text-base font-medium focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-slate-400"
+                className="w-full px-5 py-4 pl-12 rounded-2xl bg-dark-bg border-2 border-dark-border focus:border-card-lime text-white text-base font-medium focus:outline-none focus:ring-4 focus:ring-card-lime/10 transition-all placeholder:text-slate-500"
                 autoFocus
               />
-              <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
             </div>
           </div>
 
           <button
             type="submit"
             disabled={!query.trim() || isVerifying}
-            className="w-full py-3 px-5 rounded-2xl bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white font-bold text-sm shadow-md active:scale-98 transition-all flex items-center justify-center gap-2"
+            className="w-full py-4 px-6 rounded-full bg-card-lime hover:bg-card-limeDark disabled:bg-dark-border disabled:text-slate-500 text-dark-bg font-black text-sm shadow-xl shadow-card-lime/10 active:scale-98 transition-all flex items-center justify-center gap-2"
           >
             {isVerifying ? (
               <>
@@ -284,48 +264,56 @@ export default function AddPage() {
         </form>
       </div>
 
-      {/* Verification Result Section */}
+      {/* Verification Result */}
       {hasVerified && !forceShowAddForm && isDuplicateOrVariant && (
         <DuplicateMatchCard
           inputQuery={query.trim()}
           exactMatch={exactMatch}
           aiMatch={aiMatch}
           existingCandidate={candidateItem}
-          onRegisterEncounterOnExisting={handleRegisterEncounterOnExisting}
+          onRegisterEncounterOnExisting={(it) => {
+            setSelectedItem(it);
+            setIsEncounterOpen(true);
+          }}
           onAddNewAnyway={() => setForceShowAddForm(true)}
           onDiscard={() => {
             setQuery('');
             setHasVerified(false);
           }}
-          onViewExisting={handleViewExisting}
+          onViewExisting={(it) => {
+            setSelectedItem(it);
+            setIsDetailOpen(true);
+          }}
         />
       )}
 
-      {/* New Item Form (Shows if no duplicate OR if user clicked 'Adicionar mesmo assim') */}
+      {/* New Item Form */}
       {hasVerified && (!isDuplicateOrVariant || forceShowAddForm) && (
-        <form onSubmit={handleSaveToInbox} className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4 animate-in fade-in duration-200">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <form onSubmit={handleSaveToInbox} className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-5 animate-in fade-in duration-200">
+          <div className="flex items-center justify-between pb-4 border-b border-dark-border">
             <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600 block">Novo Conteúdo</span>
-              <h3 className="text-lg font-bold text-slate-900">&ldquo;{query.trim()}&rdquo; pronto para salvar</h3>
+              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-card-lime block">
+                // Novo Conteúdo Disponível
+              </span>
+              <h3 className="text-xl font-black text-white">&ldquo;{query.trim()}&rdquo;</h3>
             </div>
             {aiMatch && aiMatch.confidence > 0.5 && (
-              <span className="text-[11px] bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full border border-indigo-100 font-semibold flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-indigo-500" />
+              <span className="text-[11px] font-mono bg-dark-bg text-card-lime px-3 py-1 rounded-full border border-card-lime/30 font-bold flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5" />
                 Classificado por IA
               </span>
             )}
           </div>
 
-          {/* Type Selector Pills */}
+          {/* Classification Pills */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+            <label className="block text-xs font-mono font-bold text-slate-300 uppercase tracking-wider mb-2">
               Classificação
             </label>
             <div className="grid grid-cols-3 gap-2">
               {[
-                { id: 'vocabulary' as ContentType, label: 'Vocabulário', color: 'blue' },
-                { id: 'survival_phrase' as ContentType, label: 'Frase', color: 'emerald' },
+                { id: 'vocabulary' as ContentType, label: 'Vocabulário', color: 'pink' },
+                { id: 'survival_phrase' as ContentType, label: 'Frase', color: 'lime' },
                 { id: 'phrasal_verb' as ContentType, label: 'Phrasal Verb', color: 'amber' },
               ].map((t) => {
                 const isSel = contentType === t.id;
@@ -334,14 +322,14 @@ export default function AddPage() {
                     type="button"
                     key={t.id}
                     onClick={() => setContentType(t.id)}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+                    className={`py-2.5 px-3 rounded-2xl text-xs font-black border transition-all ${
                       isSel 
-                        ? t.color === 'blue'
-                          ? 'bg-blue-50 border-blue-500 text-blue-700 ring-2 ring-blue-100'
-                          : t.color === 'emerald'
-                            ? 'bg-emerald-50 border-emerald-500 text-emerald-700 ring-2 ring-emerald-100'
-                            : 'bg-amber-50 border-amber-500 text-amber-700 ring-2 ring-amber-100'
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        ? t.color === 'pink'
+                          ? 'bg-card-pink text-dark-bg border-card-pink ring-2 ring-card-pink/20'
+                          : t.color === 'lime'
+                            ? 'bg-card-lime text-dark-bg border-card-lime ring-2 ring-card-lime/20'
+                            : 'bg-card-amber text-dark-bg border-card-amber ring-2 ring-card-amber/20'
+                        : 'bg-dark-bg border-dark-border text-slate-400 hover:text-white'
                     }`}
                   >
                     {t.label}
@@ -351,37 +339,37 @@ export default function AddPage() {
             </div>
           </div>
 
-          {/* Meaning / Translation in Portuguese */}
+          {/* Meaning / Translation */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Significado / Tradução em português <span className="text-slate-400 font-normal">(opcional)</span>
+            <label className="block text-xs font-mono font-bold text-slate-300 uppercase tracking-wider mb-1">
+              Significado em português
             </label>
             <input
               type="text"
               placeholder="Ex: constrangedor, estranho"
               value={meaningPt}
               onChange={(e) => setMeaningPt(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="w-full px-4 py-3 rounded-2xl bg-dark-bg border border-dark-border text-white text-sm focus:outline-none focus:border-card-lime"
             />
           </div>
 
-          {/* Context Sentence */}
+          {/* Context */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Frase de Contexto <span className="text-slate-400 font-normal">(opcional)</span>
+            <label className="block text-xs font-mono font-bold text-slate-300 uppercase tracking-wider mb-1">
+              Frase de Contexto
             </label>
             <input
               type="text"
               placeholder={`Ex: "That was awkward."`}
               value={contextSentence}
               onChange={(e) => setContextSentence(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="w-full px-4 py-3 rounded-2xl bg-dark-bg border border-dark-border text-white text-sm focus:outline-none focus:border-card-lime"
             />
           </div>
 
           {/* Source Selector */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+            <label className="block text-xs font-mono font-bold text-slate-300 uppercase tracking-wider mb-2">
               Onde você encontrou?
             </label>
             <div className="grid grid-cols-4 gap-2">
@@ -393,13 +381,13 @@ export default function AddPage() {
                     type="button"
                     key={opt.id}
                     onClick={() => setSource(opt.id)}
-                    className={`flex flex-col items-center justify-center p-2 rounded-xl text-xs font-medium border transition-all ${
+                    className={`flex flex-col items-center justify-center p-2.5 rounded-2xl text-xs font-bold border transition-all ${
                       isSelected
-                        ? 'bg-blue-50 border-blue-500 text-blue-700 ring-2 ring-blue-100 shadow-sm'
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        ? 'bg-card-lime border-card-lime text-dark-bg shadow-md'
+                        : 'bg-dark-bg border-dark-border text-slate-400 hover:text-white'
                     }`}
                   >
-                    <Icon className={`w-4 h-4 mb-1 ${isSelected ? 'text-blue-600' : 'text-slate-400'}`} />
+                    <Icon className={`w-4 h-4 mb-1 ${isSelected ? 'text-dark-bg' : 'text-slate-400'}`} />
                     <span>{opt.label}</span>
                   </button>
                 );
@@ -407,44 +395,15 @@ export default function AddPage() {
             </div>
           </div>
 
-          {/* Source Details & Timestamp */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Nome/Canal <span className="text-slate-400 font-normal">(opcional)</span>
-              </label>
-              <input
-                type="text"
-                placeholder="Ex: Podcast do Luke"
-                value={sourceDetail}
-                onChange={(e) => setSourceDetail(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Timestamp <span className="text-slate-400 font-normal">(opcional)</span>
-              </label>
-              <input
-                type="text"
-                placeholder="Ex: 08:37"
-                value={timestampMarker}
-                onChange={(e) => setTimestampMarker(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-              />
-            </div>
-          </div>
-
           {/* Submit Actions */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+          <div className="pt-4 border-t border-dark-border flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={() => {
                 setHasVerified(false);
                 setForceShowAddForm(false);
               }}
-              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+              className="px-5 py-3 rounded-full text-xs font-bold text-slate-400 hover:text-white transition-colors"
             >
               Cancelar
             </button>
@@ -452,16 +411,16 @@ export default function AddPage() {
             <button
               type="submit"
               disabled={isSaving}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20 active:scale-95 transition-all"
+              className="flex items-center gap-2 px-7 py-3 rounded-full text-xs font-black bg-card-lime hover:bg-card-limeDark text-dark-bg shadow-xl shadow-card-lime/10 active:scale-95 transition-all"
             >
-              <PlusCircle className="w-4 h-4" />
+              <PlusCircle className="w-4 h-4 stroke-[2.5]" />
               {isSaving ? 'Salvando...' : 'Adicionar à Inbox'}
             </button>
           </div>
         </form>
       )}
 
-      {/* Item Detail Modal */}
+      {/* Modals */}
       <ItemDetailModal
         item={selectedItem}
         isOpen={isDetailOpen}
@@ -473,7 +432,6 @@ export default function AddPage() {
         }}
       />
 
-      {/* Encounter Modal */}
       <EncounterModal
         item={selectedItem}
         isOpen={isEncounterOpen}

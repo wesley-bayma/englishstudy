@@ -9,7 +9,8 @@ import {
   BookOpen, 
   BarChart3, 
   CheckSquare,
-  Sparkles
+  Sparkles,
+  Layers
 } from 'lucide-react';
 
 export function Navbar() {
@@ -26,20 +27,19 @@ export function Navbar() {
   return (
     <>
       {/* Top Header - Desktop & Tablet */}
-      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200">
-        <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold shadow-md shadow-blue-500/20">
-              EH
-            </div>
-            <div>
-              <span className="font-bold text-slate-900 tracking-tight text-lg block leading-none">English Study Hub</span>
-              <span className="text-[11px] text-slate-500 font-medium">Curadoria Pessoal & Anki Helper</span>
-            </div>
+      <header className="sticky top-0 z-30 bg-dark-bg/85 backdrop-blur-xl border-b border-dark-border">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2 group">
+            <span className="text-2xl font-black tracking-tighter text-white group-hover:text-card-lime transition-colors">
+              hub<span className="text-card-lime font-mono">.</span>
+            </span>
+            <span className="text-[11px] font-mono uppercase tracking-widest text-dark-muted px-2 py-0.5 rounded-full border border-dark-border/60 ml-2 hidden sm:inline-block">
+              English Anki Hub
+            </span>
           </Link>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-2">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -47,13 +47,15 @@ export function Navbar() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition-all ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold tracking-tight transition-all ${
                     isActive
-                      ? 'bg-slate-900 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  } ${item.highlight && !isActive ? 'text-blue-600 font-semibold' : ''}`}
+                      ? 'bg-white text-dark-bg shadow-sm'
+                      : item.highlight
+                        ? 'bg-card-lime text-dark-bg hover:brightness-105'
+                        : 'text-slate-400 hover:text-white hover:bg-dark-card'
+                  }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-white' : item.highlight ? 'text-blue-600' : 'text-slate-500'}`} />
+                  <Icon className={`w-3.5 h-3.5 ${isActive || item.highlight ? 'text-dark-bg stroke-[2.5]' : 'text-slate-400'}`} />
                   {item.label}
                 </Link>
               );
@@ -63,8 +65,8 @@ export function Navbar() {
       </header>
 
       {/* Bottom Navigation Bar - Mobile */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-lg border-t border-slate-200 safe-area-pb shadow-lg">
-        <div className="grid grid-cols-5 h-16 max-w-md mx-auto">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-dark-bg/95 backdrop-blur-2xl border-t border-dark-border safe-area-pb shadow-2xl">
+        <div className="grid grid-cols-5 h-16 max-w-md mx-auto px-2">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
@@ -76,14 +78,14 @@ export function Navbar() {
                   href={item.href}
                   className="flex flex-col items-center justify-center relative -top-3"
                 >
-                  <div className={`w-13 h-13 p-3 rounded-full shadow-lg transition-transform active:scale-95 flex items-center justify-center ${
+                  <div className={`w-12 h-12 rounded-2xl shadow-lg transition-transform active:scale-95 flex items-center justify-center ${
                     isActive 
-                      ? 'bg-slate-900 text-white ring-4 ring-slate-100' 
-                      : 'bg-blue-600 text-white shadow-blue-500/30'
+                      ? 'bg-white text-dark-bg ring-4 ring-dark-card' 
+                      : 'bg-card-lime text-dark-bg shadow-card-lime/20'
                   }`}>
-                    <Icon className="w-6 h-6" />
+                    <Icon className="w-6 h-6 stroke-[2.5]" />
                   </div>
-                  <span className="text-[10px] font-semibold mt-1 text-slate-700">
+                  <span className="text-[10px] font-bold mt-1 text-slate-300">
                     {item.label}
                   </span>
                 </Link>
@@ -95,10 +97,10 @@ export function Navbar() {
                 key={item.href}
                 href={item.href}
                 className={`flex flex-col items-center justify-center gap-1 transition-colors active:scale-95 ${
-                  isActive ? 'text-blue-600 font-semibold' : 'text-slate-500 hover:text-slate-800'
+                  isActive ? 'text-card-lime font-bold' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <Icon className={`w-5 h-5 ${isActive ? 'text-blue-600 stroke-[2.5]' : 'text-slate-400'}`} />
+                <Icon className={`w-5 h-5 ${isActive ? 'text-card-lime stroke-[2.5]' : 'text-slate-500'}`} />
                 <span className="text-[10px] tracking-tight">{item.label}</span>
               </Link>
             );

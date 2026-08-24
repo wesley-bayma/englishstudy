@@ -75,7 +75,6 @@ export function EncounterModal({
 
       onSuccess(updated);
       onClose();
-      // Reset
       setSourceDetail('');
       setTimestampMarker('');
       setSourceUrl('');
@@ -89,34 +88,34 @@ export function EncounterModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-bg/85 backdrop-blur-xl animate-in fade-in duration-150">
+      <div className="bg-dark-card rounded-[32px] w-full max-w-lg shadow-2xl border border-dark-border overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600">
+        <div className="p-6 border-b border-dark-border flex items-center justify-between bg-dark-bg/40">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
               <Flame className="w-5 h-5 fill-rose-500 text-rose-500" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">Registrar Encontro Natural</h2>
-              <p className="text-xs text-slate-500">
-                Termo: <span className="font-semibold text-slate-800">{item.content}</span> ({item.times_encountered} anteriores)
+              <h2 className="text-lg font-black text-white">Registrar Encontro Natural</h2>
+              <p className="text-xs text-slate-400 font-mono">
+                Termo: <span className="font-bold text-white">{item.content}</span>
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-dark-border transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4">
-          {/* Source Selector Pills */}
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
+          {/* Source Selector */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-2">
+            <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-wider mb-2">
               Onde você encontrou?
             </label>
             <div className="grid grid-cols-4 gap-2">
@@ -128,13 +127,13 @@ export function EncounterModal({
                     type="button"
                     key={opt.id}
                     onClick={() => setSource(opt.id)}
-                    className={`flex flex-col items-center justify-center p-2 rounded-xl text-xs font-medium border transition-all ${
+                    className={`flex flex-col items-center justify-center p-2.5 rounded-2xl text-xs font-bold border transition-all ${
                       isSelected
-                        ? 'bg-blue-50 border-blue-500 text-blue-700 ring-2 ring-blue-100 shadow-sm'
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                        ? 'bg-card-lime border-card-lime text-dark-bg ring-2 ring-card-lime/20 shadow-md'
+                        : 'bg-dark-bg border-dark-border text-slate-300 hover:bg-dark-border'
                     }`}
                   >
-                    <Icon className={`w-4 h-4 mb-1 ${isSelected ? 'text-blue-600' : 'text-slate-400'}`} />
+                    <Icon className={`w-4 h-4 mb-1 ${isSelected ? 'text-dark-bg' : 'text-slate-400'}`} />
                     <span>{opt.label}</span>
                   </button>
                 );
@@ -144,74 +143,60 @@ export function EncounterModal({
 
           {/* Context Sentence */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Frase do contexto <span className="text-slate-400 font-normal">(opcional, mas recomendado)</span>
+            <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-wider mb-1">
+              Frase do contexto
             </label>
             <input
               type="text"
               placeholder={`Ex: "I forgot my ${item.content} at home."`}
               value={contextSentence}
               onChange={(e) => setContextSentence(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="w-full px-4 py-3 rounded-2xl bg-dark-bg border border-dark-border text-white text-sm focus:outline-none focus:border-card-lime focus:ring-2 focus:ring-card-lime/10"
             />
           </div>
 
-          {/* Source detail & Timestamp in row */}
+          {/* Source Detail & Timestamp */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Nome/Canal <span className="text-slate-400 font-normal">(opcional)</span>
+              <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-wider mb-1">
+                Nome/Canal
               </label>
               <input
                 type="text"
                 placeholder="Ex: Friends T02E04"
                 value={sourceDetail}
                 onChange={(e) => setSourceDetail(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                className="w-full px-4 py-2.5 rounded-2xl bg-dark-bg border border-dark-border text-white text-xs focus:outline-none focus:border-card-lime"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Timestamp <span className="text-slate-400 font-normal">(opcional)</span>
+              <label className="block text-xs font-mono font-bold text-slate-400 uppercase tracking-wider mb-1">
+                Timestamp
               </label>
               <input
                 type="text"
                 placeholder="Ex: 08:37"
                 value={timestampMarker}
                 onChange={(e) => setTimestampMarker(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                className="w-full px-4 py-2.5 rounded-2xl bg-dark-bg border border-dark-border text-white text-xs focus:outline-none focus:border-card-lime"
               />
             </div>
           </div>
 
-          {/* URL */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Link / URL <span className="text-slate-400 font-normal">(opcional)</span>
-            </label>
-            <input
-              type="url"
-              placeholder="https://..."
-              value={sourceUrl}
-              onChange={(e) => setSourceUrl(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-            />
-          </div>
-
-          {/* Submit Buttons */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+          {/* Submit Actions */}
+          <div className="pt-4 border-t border-dark-border flex items-center justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+              className="px-4 py-2.5 rounded-full text-xs font-bold text-slate-400 hover:text-white transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-md shadow-rose-500/20 active:scale-95 transition-all"
+              className="flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/20 active:scale-95 transition-all"
             >
               <Flame className="w-4 h-4 fill-white" />
               {isSubmitting ? 'Registrando...' : 'Registrar Encontro (+1)'}

@@ -11,35 +11,33 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
-        vocab: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
+        dark: {
+          bg: '#090a0f',
+          card: '#12151c',
+          cardHover: '#181d26',
+          border: '#232936',
+          muted: '#64748b',
         },
-        phrase: {
-          50: '#ecfdf5',
-          100: '#d1fae5',
-          500: '#10b981',
-          600: '#059669',
-          700: '#047857',
-        },
-        phrasal: {
-          50: '#fffbeb',
-          100: '#fef3c7',
-          500: '#f59e0b',
-          600: '#d97706',
-          700: '#b45309',
-        },
+        card: {
+          pink: '#f9a8d4',       // Soft vibrant pink
+          pinkDark: '#f472b6',
+          lime: '#bef264',       // Electric lime
+          limeDark: '#a3e635',
+          amber: '#fbbf24',      // Warm golden yellow
+          amberDark: '#f59e0b',
+          blue: '#93c5fd',       // Fresh sky blue
+          blueDark: '#60a5fa',
+          purple: '#c084fc',     // Soft lavender purple
+          white: '#ffffff',
+        }
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        sans: ['Plus Jakarta Sans', 'Inter', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
       },
-      boxShadow: {
-        'soft': '0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 10px 20px -2px rgba(0, 0, 0, 0.04)',
-        'card': '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1)',
-        'card-hover': '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+      borderRadius: {
+        '3xl': '24px',
+        '4xl': '32px',
       }
     },
   },

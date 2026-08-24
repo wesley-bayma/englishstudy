@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { ContentItem, ContentType, ContentSource, AnkiStatus } from '../../lib/types';
+import { ContentItem, ContentType, ContentSource } from '../../lib/types';
 import { searchContentItems, toggleAnkiStatus } from '../../lib/db';
 import { ContentCard } from '../../components/ContentCard';
 import { ItemDetailModal } from '../../components/ItemDetailModal';
@@ -30,7 +30,7 @@ export default function BankPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
-  const pageSize = 40;
+  const pageSize = 30;
 
   // Modals
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
@@ -98,28 +98,28 @@ export default function BankPage() {
   const hasActiveFilters = query || sourceFilter !== 'all' || typeFilter !== 'all' || ankiFilter !== 'all' || onlyEncountered;
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Banco de Conteúdo</h1>
-              <p className="text-xs text-slate-500 font-medium">
-                {totalCount} itens cadastrados • Base original e Inbox
-              </p>
-            </div>
+    <div className="space-y-8 pt-4">
+      {/* Header Banner */}
+      <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="space-y-2">
+            <span className="text-xs font-mono font-bold tracking-widest text-card-lime uppercase">
+              // Biblioteca Geral
+            </span>
+            <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+              Banco de Conteúdo
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-400 font-mono">
+              {totalCount} itens cadastrados no total
+            </p>
           </div>
 
           <Link
             href="/add"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-md shadow-blue-500/20 active:scale-95 transition-all"
+            className="flex items-center gap-2 px-5 py-3 rounded-full bg-card-lime hover:bg-card-limeDark text-dark-bg font-black text-xs shadow-lg active:scale-95 transition-all"
           >
-            <PlusCircle className="w-4 h-4" />
-            <span className="hidden sm:inline">Adicionar Novo</span>
+            <PlusCircle className="w-4 h-4 stroke-[2.5]" />
+            Adicionar Novo
           </Link>
         </div>
 
@@ -133,29 +133,28 @@ export default function BankPage() {
               setQuery(e.target.value);
               setPage(0);
             }}
-            className="w-full px-4 py-3 pl-11 pr-10 rounded-2xl border-2 border-slate-200 focus:border-indigo-500 text-sm font-medium focus:outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all placeholder:text-slate-400"
+            className="w-full px-5 py-4 pl-12 pr-12 rounded-2xl bg-dark-bg border-2 border-dark-border focus:border-card-lime text-white text-sm font-medium focus:outline-none focus:ring-4 focus:ring-card-lime/10 transition-all placeholder:text-slate-500"
           />
-          <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
             >
               <X className="w-4 h-4" />
             </button>
           )}
         </div>
 
-        {/* Filter Pills Grid / Scroll */}
-        <div className="space-y-2 pt-1">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-semibold">
-            {/* Source */}
+        {/* Filters */}
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold">
             <button
               onClick={() => { setSourceFilter('all'); setPage(0); }}
-              className={`px-3 py-1.5 rounded-full transition-all ${
+              className={`px-4 py-2 rounded-full transition-all ${
                 sourceFilter === 'all' && !onlyEncountered
-                  ? 'bg-slate-900 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-white text-dark-bg shadow-sm'
+                  : 'bg-dark-bg text-slate-400 hover:text-white border border-dark-border'
               }`}
             >
               Todos
@@ -163,10 +162,10 @@ export default function BankPage() {
 
             <button
               onClick={() => { setSourceFilter('base'); setPage(0); }}
-              className={`px-3 py-1.5 rounded-full transition-all ${
+              className={`px-4 py-2 rounded-full transition-all ${
                 sourceFilter === 'base'
-                  ? 'bg-slate-900 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-white text-dark-bg shadow-sm'
+                  : 'bg-dark-bg text-slate-400 hover:text-white border border-dark-border'
               }`}
             >
               Base (3.250)
@@ -174,10 +173,10 @@ export default function BankPage() {
 
             <button
               onClick={() => { setSourceFilter('inbox'); setPage(0); }}
-              className={`px-3 py-1.5 rounded-full transition-all ${
+              className={`px-4 py-2 rounded-full transition-all ${
                 sourceFilter === 'inbox'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                  ? 'bg-card-pink text-dark-bg font-black shadow-sm'
+                  : 'bg-dark-bg text-card-pink hover:bg-dark-border border border-dark-border'
               }`}
             >
               Meus Achados (Inbox)
@@ -185,10 +184,10 @@ export default function BankPage() {
 
             <button
               onClick={() => { setOnlyEncountered(!onlyEncountered); setPage(0); }}
-              className={`px-3 py-1.5 rounded-full flex items-center gap-1 transition-all ${
+              className={`px-4 py-2 rounded-full flex items-center gap-1.5 transition-all ${
                 onlyEncountered
                   ? 'bg-rose-600 text-white shadow-sm'
-                  : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                  : 'bg-dark-bg text-rose-400 hover:bg-rose-950/40 border border-rose-900/40'
               }`}
             >
               <Flame className="w-3.5 h-3.5" />
@@ -196,16 +195,13 @@ export default function BankPage() {
             </button>
           </div>
 
-          {/* Type and Anki status filters */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-medium">
-            <span className="text-slate-400 text-[11px] font-semibold uppercase tracking-wider pl-1 mr-1">Tipo:</span>
-            
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-medium">
             <button
               onClick={() => { setTypeFilter(typeFilter === 'vocabulary' ? 'all' : 'vocabulary'); setPage(0); }}
-              className={`px-2.5 py-1 rounded-lg border transition-all ${
+              className={`px-3 py-1.5 rounded-xl border transition-all ${
                 typeFilter === 'vocabulary'
-                  ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  ? 'bg-card-pink text-dark-bg border-card-pink font-bold'
+                  : 'bg-dark-bg border-dark-border text-slate-400 hover:text-white'
               }`}
             >
               Vocabulário
@@ -213,10 +209,10 @@ export default function BankPage() {
 
             <button
               onClick={() => { setTypeFilter(typeFilter === 'survival_phrase' ? 'all' : 'survival_phrase'); setPage(0); }}
-              className={`px-2.5 py-1 rounded-lg border transition-all ${
+              className={`px-3 py-1.5 rounded-xl border transition-all ${
                 typeFilter === 'survival_phrase'
-                  ? 'bg-emerald-50 border-emerald-400 text-emerald-700 font-bold'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  ? 'bg-card-lime text-dark-bg border-card-lime font-bold'
+                  : 'bg-dark-bg border-dark-border text-slate-400 hover:text-white'
               }`}
             >
               Frases
@@ -224,24 +220,23 @@ export default function BankPage() {
 
             <button
               onClick={() => { setTypeFilter(typeFilter === 'phrasal_verb' ? 'all' : 'phrasal_verb'); setPage(0); }}
-              className={`px-2.5 py-1 rounded-lg border transition-all ${
+              className={`px-3 py-1.5 rounded-xl border transition-all ${
                 typeFilter === 'phrasal_verb'
-                  ? 'bg-amber-50 border-amber-400 text-amber-700 font-bold'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  ? 'bg-card-amber text-dark-bg border-card-amber font-bold'
+                  : 'bg-dark-bg border-dark-border text-slate-400 hover:text-white'
               }`}
             >
               Phrasal Verbs
             </button>
 
-            <span className="text-slate-300">|</span>
+            <span className="text-dark-border">|</span>
 
-            {/* Anki status */}
             <button
               onClick={() => { setAnkiFilter(ankiFilter === 'created' ? 'all' : 'created'); setPage(0); }}
-              className={`px-2.5 py-1 rounded-lg border transition-all ${
+              className={`px-3 py-1.5 rounded-xl border transition-all ${
                 ankiFilter === 'created'
-                  ? 'bg-emerald-50 border-emerald-500 text-emerald-700 font-bold'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 font-bold'
+                  : 'bg-dark-bg border-dark-border text-slate-400 hover:text-white'
               }`}
             >
               ✅ Já no Anki
@@ -249,10 +244,10 @@ export default function BankPage() {
 
             <button
               onClick={() => { setAnkiFilter(ankiFilter === 'not_created' ? 'all' : 'not_created'); setPage(0); }}
-              className={`px-2.5 py-1 rounded-lg border transition-all ${
+              className={`px-3 py-1.5 rounded-xl border transition-all ${
                 ankiFilter === 'not_created'
-                  ? 'bg-slate-900 border-slate-900 text-white font-bold'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  ? 'bg-white text-dark-bg border-white font-bold'
+                  : 'bg-dark-bg border-dark-border text-slate-400 hover:text-white'
               }`}
             >
               ⏳ Pendentes
@@ -261,40 +256,33 @@ export default function BankPage() {
             {hasActiveFilters && (
               <button
                 onClick={resetFilters}
-                className="text-[11px] text-slate-500 hover:text-slate-800 underline ml-auto pl-2 whitespace-nowrap"
+                className="text-xs text-slate-400 hover:text-white underline ml-auto pl-2 whitespace-nowrap"
               >
-                Limpar Filtros
+                Limpar
               </button>
             )}
           </div>
         </div>
       </div>
 
-      {/* Items Results */}
+      {/* Grid Results */}
       {loading ? (
-        <div className="py-12 text-center text-slate-400 text-sm font-medium">
-          Buscando registros no banco...
+        <div className="py-20 text-center text-slate-500 font-mono text-sm">
+          // Buscando registros no banco...
         </div>
       ) : items.length === 0 ? (
-        <div className="bg-white rounded-3xl p-10 text-center border border-slate-200 space-y-3">
-          <p className="text-slate-600 font-medium">Nenhum item encontrado com os filtros selecionados.</p>
-          {query && (
-            <Link
-              href={`/add`}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-md shadow-blue-500/20"
-            >
-              <PlusCircle className="w-4 h-4" />
-              Adicionar &ldquo;{query}&rdquo; à Inbox
-            </Link>
-          )}
+        <div className="bg-dark-card rounded-[32px] p-12 text-center border border-dark-border space-y-3">
+          <p className="text-slate-400 text-sm">Nenhum item encontrado.</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            {items.map((item) => (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+            {items.map((item, idx) => (
               <ContentCard
                 key={item.id}
                 item={item}
+                index={page * pageSize + idx + 1}
+                defaultExpandedCard={true}
                 onMarkCreated={handleToggleAnki}
                 onViewDetails={(it) => {
                   setSelectedItem(it);
@@ -308,25 +296,25 @@ export default function BankPage() {
             ))}
           </div>
 
-          {/* Pagination Controls */}
+          {/* Pagination */}
           {totalCount > pageSize && (
-            <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 text-xs font-semibold text-slate-700">
+            <div className="flex items-center justify-between bg-dark-card p-4 rounded-2xl border border-dark-border text-xs font-bold text-slate-300 font-mono">
               <span>
-                Mostrando {page * pageSize + 1}–{Math.min((page + 1) * pageSize, totalCount)} de {totalCount}
+                {page * pageSize + 1}–{Math.min((page + 1) * pageSize, totalCount)} de {totalCount}
               </span>
               <div className="flex items-center gap-2">
                 <button
                   disabled={page === 0}
                   onClick={() => setPage(p => Math.max(0, p - 1))}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50 transition-colors"
+                  className="px-4 py-2 rounded-xl bg-dark-bg border border-dark-border disabled:opacity-30 hover:bg-dark-border text-white transition-colors"
                 >
                   &larr; Anterior
                 </button>
-                <span className="font-mono">Página {page + 1}</span>
+                <span>Página {page + 1}</span>
                 <button
                   disabled={(page + 1) * pageSize >= totalCount}
                   onClick={() => setPage(p => p + 1)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-50 transition-colors"
+                  className="px-4 py-2 rounded-xl bg-dark-bg border border-dark-border disabled:opacity-30 hover:bg-dark-border text-white transition-colors"
                 >
                   Próxima &rarr;
                 </button>
@@ -336,7 +324,7 @@ export default function BankPage() {
         </div>
       )}
 
-      {/* Item Detail Modal */}
+      {/* Modals */}
       <ItemDetailModal
         item={selectedItem}
         isOpen={isDetailOpen}
@@ -348,7 +336,6 @@ export default function BankPage() {
         }}
       />
 
-      {/* Encounter Modal */}
       <EncounterModal
         item={selectedItem}
         isOpen={isEncounterOpen}
