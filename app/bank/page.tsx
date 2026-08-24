@@ -282,7 +282,6 @@ export default function BankPage() {
                 key={item.id}
                 item={item}
                 index={page * pageSize + idx + 1}
-                defaultExpandedCard={true}
                 onMarkCreated={handleToggleAnki}
                 onViewDetails={(it) => {
                   setSelectedItem(it);

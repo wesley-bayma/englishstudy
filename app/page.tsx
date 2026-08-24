@@ -2,12 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { ContentItem, DailyQueue, ContentType } from '../lib/types';
-import { getOrCreateTodayQueue, markQueueItemCreated, skipQueueItem } from '../lib/daily-queue';
+import { 
+  getOrCreateTodayQueue, 
+  markQueueItemCreated, 
+  skipQueueItem,
+  regenerateTodayQueue,
+  getFormattedDate,
+  getTodayDateString 
+} from '../lib/daily-queue';
 import { ContentCard } from '../components/ContentCard';
 import { ItemDetailModal } from '../components/ItemDetailModal';
 import { EncounterModal } from '../components/EncounterModal';
-import { AnkiFocusModal } from '../components/AnkiFocusModal';
-import { generateAnkiCardData } from '../lib/card-generator';
 import confetti from 'canvas-confetti';
 import { 
   CalendarDays, 
@@ -15,11 +20,10 @@ import {
   Flame, 
   RotateCcw, 
   Sparkles, 
-  PlayCircle,
-  Copy,
-  Check,
+  Check, 
   ArrowUpRight,
-  Layers
+  RefreshCw,
+  Info
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -28,13 +32,16 @@ export default function TodayPage() {
   const [items, setItems] = useState<ContentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTypeFilter, setActiveTypeFilter] = useState<'all' | ContentType>('all');
-  const [copiedAll, setCopiedAll] = useState(false);
+  const [isAuditing, setIsAuditing] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
   
   // Modals state
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isEncounterOpen, setIsEncounterOpen] = useState(false);
-  const [isFocusModalOpen, setIsFocusModalOpen] = useState(false);
+
+  const todayIso = getTodayDateString();
+  const formattedToday = getFormattedDate(todayIso);
 
   const loadQueue = async () => {
     setLoading(true);
@@ -52,6 +59,19 @@ export default function TodayPage() {
   useEffect(() => {
     loadQueue();
   }, []);
+
+  const handleRegenerate = async () => {
+    setIsRegenerating(true);
+    try {
+      const res = await regenerateTodayQueue();
+      setQueue(res.queue);
+      setItems(res.items);
+    } catch (err) {
+      console.error('Failed to regenerate queue:', err);
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
 
   const handleMarkCreated = async (item: ContentItem) => {
     try {
@@ -88,17 +108,6 @@ export default function TodayPage() {
     }
   };
 
-  const handleCopyAllCards = () => {
-    const text = items.map((item, idx) => {
-      const card = generateAnkiCardData(item);
-      return `=== CARD #${idx + 1} (${item.type.toUpperCase()}) ===\nFRENTE:\n${card.front}\n\nVERSO:\n${card.back}\n\nEXPLICAÇÃO:\n${card.explanation}\n`;
-    }).join('\n----------------------------------------\n\n');
-
-    navigator.clipboard.writeText(text);
-    setCopiedAll(true);
-    setTimeout(() => setCopiedAll(false), 2500);
-  };
-
   // Category counts
   const vocabItems = items.filter(i => i.type === 'vocabulary' || i.type === 'personal_vocabulary');
   const phraseItems = items.filter(i => i.type === 'survival_phrase' || i.type === 'personal_phrase');
@@ -121,50 +130,105 @@ export default function TodayPage() {
 
   return (
     <div className="space-y-10">
-      {/* Hero Section matching reference typography */}
-      <div className="space-y-6 pt-4">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="max-w-xl space-y-3">
-            <span className="text-xs font-mono font-bold tracking-widest text-card-lime uppercase">
-              // Rotina Diária no Anki
-            </span>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tighter text-white leading-[1.05]">
-              English is an art <br />
-              <span className="text-slate-400">and you&apos;re the curator.</span>
-            </h1>
-            <p className="text-sm text-slate-400 font-medium max-w-lg">
-              10 cards prontos com explicações linguísticas e exemplos canônicos para você criar manualmente no seu deck do Anki.
-            </p>
+      {/* Date & Audit Bar */}
+      <div className="flex items-center justify-between gap-3 flex-wrap p-4 sm:p-5 bg-dark-card border border-dark-border rounded-[28px] shadow-lg">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-card-lime/10 border border-card-lime/30 flex items-center justify-center text-card-lime">
+            <CalendarDays className="w-5 h-5" />
           </div>
-
-          {/* Action CTAs */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
-            <button
-              onClick={() => setIsFocusModalOpen(true)}
-              className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-card-lime hover:bg-card-limeDark text-dark-bg font-black text-sm shadow-xl shadow-card-lime/10 active:scale-95 transition-all"
-            >
-              <PlayCircle className="w-4 h-4 stroke-[2.5]" />
-              Modo Foco no Anki
-              <ArrowUpRight className="w-4 h-4" />
-            </button>
-
-            <button
-              onClick={handleCopyAllCards}
-              className="flex items-center justify-center gap-2 px-5 py-3.5 rounded-full bg-dark-card hover:bg-dark-border text-slate-200 border border-dark-border font-bold text-xs transition-colors"
-            >
-              {copiedAll ? <Check className="w-4 h-4 text-card-lime" /> : <Copy className="w-4 h-4 text-slate-400" />}
-              {copiedAll ? '10 Cards Copiados!' : 'Copiar Todos os 10 Cards'}
-            </button>
+          <div>
+            <span className="text-sm font-mono font-black text-card-lime capitalize block">
+              Hoje: {formattedToday}
+            </span>
+            <span className="text-xs text-slate-400 font-mono">
+              Fila diária única ({todayIso}) • 10 conteúdos
+            </span>
           </div>
         </div>
 
-        {/* Minimalist Underlined Stats Bar matching reference top section */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsAuditing(!isAuditing)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-dark-bg hover:bg-dark-border text-slate-300 text-xs font-mono font-bold border border-dark-border transition-colors"
+          >
+            <Info className="w-3.5 h-3.5 text-card-lime" />
+            {isAuditing ? 'Ocultar Auditoria' : 'Auditar Fila'}
+          </button>
+
+          <button
+            onClick={handleRegenerate}
+            disabled={isRegenerating}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-dark-bg hover:bg-dark-border text-slate-300 text-xs font-mono font-bold border border-dark-border transition-colors"
+            title="Sortear nova seleção para hoje"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRegenerating ? 'animate-spin text-card-lime' : 'text-slate-400'}`} />
+            {isRegenerating ? 'Atualizando...' : 'Regenerar'}
+          </button>
+        </div>
+      </div>
+
+      {/* Audit Explanation Drawer */}
+      {isAuditing && (
+        <div className="p-6 bg-dark-card border-2 border-card-lime/40 rounded-[32px] text-xs font-mono space-y-4 animate-in fade-in">
+          <div className="flex items-center gap-2 text-card-lime font-bold text-sm">
+            <CheckCircle2 className="w-5 h-5" />
+            Auditoria da Seleção de Conteúdos ({todayIso}):
+          </div>
+          <p className="text-slate-300 font-sans text-xs leading-relaxed">
+            Estes são os 10 itens entregues pelo algoritmo para hoje:
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <div className="p-3 bg-dark-bg rounded-2xl border border-card-pink/30 space-y-1">
+              <span className="text-card-pink font-bold block">5 Vocabulários:</span>
+              <ul className="text-slate-300 text-[11px] space-y-0.5">
+                {vocabItems.map(i => (
+                  <li key={i.id}>• {i.content} <span className="opacity-60">({i.source === 'base' ? `#${i.original_order}` : 'Inbox'})</span></li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="p-3 bg-dark-bg rounded-2xl border border-card-lime/30 space-y-1">
+              <span className="text-card-lime font-bold block">3 Frases:</span>
+              <ul className="text-slate-300 text-[11px] space-y-0.5">
+                {phraseItems.map(i => (
+                  <li key={i.id}>• {i.content}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="p-3 bg-dark-bg rounded-2xl border border-card-amber/30 space-y-1">
+              <span className="text-card-amber font-bold block">2 Phrasal Verbs:</span>
+              <ul className="text-slate-300 text-[11px] space-y-0.5">
+                {pvItems.map(i => (
+                  <li key={i.id}>• {i.content}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hero Section */}
+      <div className="space-y-6">
+        <div className="space-y-3">
+          <span className="text-xs font-mono font-bold tracking-widest text-card-lime uppercase">
+            // Curadoria Diária para Anki
+          </span>
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tighter text-white leading-[1.05]">
+            Conteúdos de Hoje.
+          </h1>
+          <p className="text-sm sm:text-base text-slate-400 font-medium max-w-xl">
+            Pesquise suas frases no seu contexto de estudo e crie manualmente seus cards no Anki.
+          </p>
+        </div>
+
+        {/* Minimalist Stats Bar */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 pt-4 border-t border-dark-border/80">
           {/* Total Progress */}
           <div className="space-y-1">
-            <span className="text-xs font-mono text-slate-400 uppercase tracking-wider block">Meta Total</span>
+            <span className="text-xs font-mono text-slate-400 uppercase tracking-wider block">Meta de Hoje</span>
             <div className="text-2xl font-black text-white font-mono">{totalDone}/{totalTarget}</div>
-            <div className="w-full bg-dark-border h-1 rounded-full overflow-hidden mt-2">
+            <div className="w-full bg-dark-border h-1.5 rounded-full overflow-hidden mt-2">
               <div
                 className="bg-card-lime h-full transition-all duration-500 ease-out"
                 style={{ width: `${progressPercent}%` }}
@@ -179,7 +243,7 @@ export default function TodayPage() {
           >
             <span className="text-xs font-mono text-card-pink uppercase tracking-wider block group-hover:underline">01. Vocabulário</span>
             <div className="text-2xl font-black text-white font-mono">{vocabDone}/5</div>
-            <span className="text-[11px] text-slate-500 font-medium block">palavras diárias</span>
+            <span className="text-[11px] text-slate-500 font-medium block">palavras do dia</span>
           </button>
 
           {/* Frases */}
@@ -207,7 +271,7 @@ export default function TodayPage() {
           <div className="p-4 bg-card-lime/10 border-2 border-card-lime rounded-2xl flex items-center gap-3 text-card-lime text-xs font-bold animate-in fade-in">
             <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
             <span>
-              Excelente! Meta diária de 10 cards atingida. Revise os cards no seu aplicativo do Anki ao longo do dia!
+              Parabéns! Você concluiu todos os 10 conteúdos de hoje no Anki.
             </span>
           </div>
         )}
@@ -223,7 +287,7 @@ export default function TodayPage() {
               : 'bg-dark-card text-slate-400 hover:text-white border border-dark-border'
           }`}
         >
-          Todos os Cards ({items.length})
+          Todos os 10 Itens ({items.length})
         </button>
 
         <button
@@ -260,19 +324,21 @@ export default function TodayPage() {
         </button>
       </div>
 
-      {/* Modern Vibrant Cards Grid */}
+      {/* Modern Content Cards Grid */}
       {loading ? (
-        <div className="py-20 text-center text-slate-500 font-mono text-sm">
-          // Carregando cards de hoje...
+        <div className="py-20 text-center text-slate-400 font-mono text-sm">
+          // Carregando conteúdos de hoje...
         </div>
       ) : filteredItems.length === 0 ? (
-        <div className="bg-dark-card rounded-[32px] p-12 text-center border border-dark-border space-y-3">
-          <p className="text-slate-400 text-sm">Nenhum card pendente nesta categoria.</p>
+        <div className="bg-dark-card rounded-[32px] p-12 text-center border border-dark-border space-y-4">
+          <p className="text-slate-300 text-sm font-semibold">
+            Nenhum item carregado nesta visualização.
+          </p>
           <button
-            onClick={() => setActiveTypeFilter('all')}
-            className="text-xs font-bold text-card-lime hover:underline"
+            onClick={handleRegenerate}
+            className="px-6 py-3 bg-card-lime text-dark-bg rounded-full text-xs font-black shadow-lg"
           >
-            Ver todos os 10 cards
+            Carregar 10 Conteúdos de Hoje
           </button>
         </div>
       ) : (
@@ -283,7 +349,6 @@ export default function TodayPage() {
               item={item}
               index={idx + 1}
               isInDailyQueue={true}
-              defaultExpandedCard={true}
               onMarkCreated={handleMarkCreated}
               onSkip={handleSkip}
               onViewDetails={(it) => {
@@ -298,15 +363,6 @@ export default function TodayPage() {
           ))}
         </div>
       )}
-
-      {/* Step-by-Step Focus Modal */}
-      <AnkiFocusModal
-        items={items}
-        isOpen={isFocusModalOpen}
-        onClose={() => setIsFocusModalOpen(false)}
-        onMarkCreated={handleMarkCreated}
-        onSkipItem={handleSkip}
-      />
 
       {/* Item Detail Modal */}
       <ItemDetailModal

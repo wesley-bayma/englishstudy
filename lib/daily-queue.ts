@@ -1,4 +1,4 @@
-import { getDB } from './db';
+import { getDB, initDatabase } from './db';
 import { ContentItem, DailyQueue, DailyQueueItem, ContentType } from './types';
 
 export function getTodayDateString(): string {
@@ -9,8 +9,18 @@ export function getTodayDateString(): string {
   return `${year}-${month}-${day}`;
 }
 
+export function getFormattedDate(dateStr?: string): string {
+  const d = dateStr ? new Date(dateStr + 'T12:00:00') : new Date();
+  return d.toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+}
+
 /**
- * Shuffles an array with Fisher-Yates while maintaining some distance between similar items
+ * Shuffles an array with Fisher-Yates while maintaining variety
  */
 function shuffleWithVariety<T>(array: T[]): T[] {
   const arr = [...array];
@@ -55,7 +65,6 @@ async function selectItemsForCategory(
 
   // 3. Priority 3: Base items not yet encountered
   const baseUnseen = pending.filter(i => i.source === 'base' && i.times_encountered === 0);
-  // Introduce randomized variety so sequential words (e.g. apple, banana...) aren't grouped together
   const shuffledBaseUnseen = shuffleWithVariety(baseUnseen);
 
   const selected: ContentItem[] = [];
@@ -85,7 +94,7 @@ async function selectItemsForCategory(
 }
 
 /**
- * Gets or creates today's daily queue
+ * Gets or creates today's daily queue, ensuring database is seeded and queue is not empty
  */
 export async function getOrCreateTodayQueue(
   goals = { vocabulary: 5, phrases: 3, phrasal_verbs: 2 }
@@ -94,43 +103,69 @@ export async function getOrCreateTodayQueue(
   const todayStr = getTodayDateString();
   const queueId = `queue_${todayStr}`;
 
+  // Ensure DB is initialized with seeds
+  await initDatabase();
+
   let queue = await db.daily_queues.get(queueId);
 
-  if (!queue) {
-    const excludeIds = new Set<string>();
-
-    const vocabItems = await selectItemsForCategory('vocabulary', goals.vocabulary, excludeIds);
-    const phraseItems = await selectItemsForCategory('survival_phrase', goals.phrases, excludeIds);
-    const pvItems = await selectItemsForCategory('phrasal_verb', goals.phrasal_verbs, excludeIds);
-
-    const queueItems: DailyQueueItem[] = [
-      ...vocabItems.map(i => ({ content_id: i.id, type: i.type, status: 'pending' as const })),
-      ...phraseItems.map(i => ({ content_id: i.id, type: i.type, status: 'pending' as const })),
-      ...pvItems.map(i => ({ content_id: i.id, type: i.type, status: 'pending' as const }))
-    ];
-
-    queue = {
-      id: queueId,
-      date: todayStr,
-      items: queueItems,
-      completed_count: 0,
-      target_count: queueItems.length
-    };
-
-    await db.daily_queues.add(queue);
+  // If queue doesn't exist OR was saved empty (e.g. before initial seeding), regenerate it
+  if (!queue || !queue.items || queue.items.length === 0) {
+    return await regenerateTodayQueue(goals);
   }
 
   // Hydrate full content items
   const itemIds = queue.items.map(qi => qi.content_id);
   const hydratedItems = await db.content_items.where('id').anyOf(itemIds).toArray();
 
-  // Sort hydrated items in the order of the queue
+  // If hydration returned fewer items (e.g. 0), regenerate
+  if (hydratedItems.length === 0) {
+    return await regenerateTodayQueue(goals);
+  }
+
   const idMap = new Map(hydratedItems.map(item => [item.id, item]));
   const orderedItems = queue.items
     .map(qi => idMap.get(qi.content_id))
     .filter((item): item is ContentItem => item !== undefined);
 
   return { queue, items: orderedItems };
+}
+
+/**
+ * Force regenerates today's queue
+ */
+export async function regenerateTodayQueue(
+  goals = { vocabulary: 5, phrases: 3, phrasal_verbs: 2 }
+): Promise<{ queue: DailyQueue; items: ContentItem[] }> {
+  const db = getDB();
+  const todayStr = getTodayDateString();
+  const queueId = `queue_${todayStr}`;
+
+  await initDatabase();
+
+  const excludeIds = new Set<string>();
+
+  const vocabItems = await selectItemsForCategory('vocabulary', goals.vocabulary, excludeIds);
+  const phraseItems = await selectItemsForCategory('survival_phrase', goals.phrases, excludeIds);
+  const pvItems = await selectItemsForCategory('phrasal_verb', goals.phrasal_verbs, excludeIds);
+
+  const queueItems: DailyQueueItem[] = [
+    ...vocabItems.map(i => ({ content_id: i.id, type: i.type, status: 'pending' as const })),
+    ...phraseItems.map(i => ({ content_id: i.id, type: i.type, status: 'pending' as const })),
+    ...pvItems.map(i => ({ content_id: i.id, type: i.type, status: 'pending' as const }))
+  ];
+
+  const queue: DailyQueue = {
+    id: queueId,
+    date: todayStr,
+    items: queueItems,
+    completed_count: 0,
+    target_count: queueItems.length
+  };
+
+  await db.daily_queues.put(queue);
+
+  const allSelected = [...vocabItems, ...phraseItems, ...pvItems];
+  return { queue, items: allSelected };
 }
 
 /**
@@ -145,7 +180,10 @@ export async function skipQueueItem(
   const queueId = `queue_${todayStr}`;
 
   let queue = await db.daily_queues.get(queueId);
-  if (!queue) throw new Error('Today queue not found');
+  if (!queue) {
+    const res = await getOrCreateTodayQueue();
+    queue = res.queue;
+  }
 
   const existingIds = new Set(queue.items.map(qi => qi.content_id));
 
@@ -191,7 +229,6 @@ export async function markQueueItemCreated(
   const todayStr = getTodayDateString();
   const queueId = `queue_${todayStr}`;
 
-  // Update item in database
   const now = new Date().toISOString();
   await db.content_items.update(contentId, {
     anki_status: 'created',

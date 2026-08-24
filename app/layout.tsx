@@ -15,15 +15,15 @@ export default function RootLayout({
   }, []);
 
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" className="dark">
       <head>
         <title>English Study Hub</title>
         <meta name="description" content="Organização e curadoria pessoal de vocabulário, frases e phrasal verbs para Anki" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
       </head>
-      <body className="bg-slate-50 text-slate-900 min-h-screen flex flex-col antialiased">
+      <body className="bg-dark-bg text-slate-100 min-h-screen flex flex-col antialiased selection:bg-card-lime selection:text-dark-bg">
         <Navbar />
-        <main className="flex-1 max-w-4xl w-full mx-auto p-4 sm:p-6 pb-24 md:pb-12">
+        <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 pb-24 md:pb-12">
           {children}
         </main>
       </body>

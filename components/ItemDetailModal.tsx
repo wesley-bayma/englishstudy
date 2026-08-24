@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { ContentItem, Encounter, GeminiAnalysisResult } from '../lib/types';
 import { getItemEncounters, toggleAnkiStatus } from '../lib/db';
 import { analyzeWithGemini } from '../lib/gemini';
-import { generateAnkiCardData } from '../lib/card-generator';
 import { 
   X, 
   Flame, 
@@ -12,9 +11,7 @@ import {
   RotateCcw, 
   Calendar, 
   Sparkles, 
-  Copy, 
-  BookOpen, 
-  Volume2
+  BookOpen
 } from 'lucide-react';
 
 interface ItemDetailModalProps {
@@ -35,7 +32,6 @@ export function ItemDetailModal({
   const [encounters, setEncounters] = useState<Encounter[]>([]);
   const [aiAnalysis, setAiAnalysis] = useState<GeminiAnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [copiedSection, setCopiedSection] = useState<string | null>(null);
 
   useEffect(() => {
     if (item && isOpen) {
@@ -68,13 +64,6 @@ export function ItemDetailModal({
     }
   };
 
-  const copyToClipboard = (text: string, section: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedSection(section);
-    setTimeout(() => setCopiedSection(null), 2000);
-  };
-
-  const ankiData = generateAnkiCardData(item);
   const isCreated = item.anki_status === 'created';
 
   return (
@@ -97,7 +86,7 @@ export function ItemDetailModal({
                 {item.source === 'base' ? `Base #${item.original_order}` : `Inbox (${item.source})`}
               </span>
               {item.times_encountered > 0 && (
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-rose-600 text-white flex items-center gap-1">
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-rose-600 text-white flex items-center gap-1 font-mono">
                   <Flame className="w-3.5 h-3.5 fill-white" />
                   {item.times_encountered}x encontros
                 </span>
@@ -120,47 +109,9 @@ export function ItemDetailModal({
             {item.meaning_pt && (
               <div>
                 <span className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">Significado / Tradução</span>
-                <p className="text-base text-slate-200 font-medium">{item.meaning_pt}</p>
+                <p className="text-lg text-slate-100 font-semibold">{item.meaning_pt}</p>
               </div>
             )}
-
-            {/* Anki Card Preview Box */}
-            <div className="bg-dark-bg p-4 rounded-2xl border border-dark-border space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-mono font-bold text-card-lime uppercase tracking-wider flex items-center gap-1.5">
-                  <BookOpen className="w-4 h-4" />
-                  Formato Canônico do Card no Anki
-                </span>
-                <button
-                  onClick={() => copyToClipboard(ankiData.copyFull, 'full')}
-                  className="text-xs font-mono text-card-lime hover:underline font-bold"
-                >
-                  {copiedSection === 'full' ? 'Copiado!' : 'Copiar Tudo'}
-                </button>
-              </div>
-
-              <div className="space-y-2 text-xs font-mono">
-                <div className="p-3 bg-dark-card rounded-xl border border-dark-border/80">
-                  <div className="flex items-center justify-between text-slate-400 text-[10px] uppercase font-bold mb-1">
-                    <span>FRENTE</span>
-                    <button onClick={() => copyToClipboard(ankiData.front, 'front')} className="text-slate-300 hover:text-white">Copiar</button>
-                  </div>
-                  <p className="text-white select-all whitespace-pre-line">{ankiData.front}</p>
-                </div>
-
-                <div className="p-3 bg-dark-card rounded-xl border border-dark-border/80">
-                  <div className="flex items-center justify-between text-slate-400 text-[10px] uppercase font-bold mb-1">
-                    <span>VERSO</span>
-                    <button onClick={() => copyToClipboard(ankiData.back, 'back')} className="text-slate-300 hover:text-white">Copiar</button>
-                  </div>
-                  <p className="text-white select-all whitespace-pre-line">{ankiData.back}</p>
-                </div>
-              </div>
-
-              <p className="text-[11px] text-slate-400">
-                💡 {ankiData.explanation}
-              </p>
-            </div>
 
             {/* Toggle Anki and Add Encounter Buttons */}
             <div className="flex items-center gap-3 pt-2">
@@ -202,12 +153,12 @@ export function ItemDetailModal({
           <div className="pt-5">
             <h3 className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-slate-400" />
-              Histórico de Encontros ({encounters.length})
+              Histórico de Encontros Naturais ({encounters.length})
             </h3>
             {encounters.length === 0 ? (
               <p className="text-xs text-slate-500 italic">Nenhum encontro adicional registrado.</p>
             ) : (
-              <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                 {encounters.map((enc) => (
                   <div key={enc.id} className="text-xs bg-dark-bg p-3 rounded-2xl border border-dark-border">
                     <div className="flex items-center justify-between font-bold text-slate-200 mb-0.5">
@@ -230,7 +181,7 @@ export function ItemDetailModal({
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-card-lime" />
-                Análise com Gemini Flash
+                Consultar com Gemini Flash
               </h3>
               {!aiAnalysis && (
                 <button
@@ -239,7 +190,7 @@ export function ItemDetailModal({
                   className="px-3 py-1 bg-dark-bg hover:bg-dark-border text-card-lime border border-card-lime/30 rounded-full text-xs font-bold flex items-center gap-1 transition-colors"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  {isAnalyzing ? 'Analisando...' : 'Analisar'}
+                  {isAnalyzing ? 'Analisando...' : 'Analisar Significado'}
                 </button>
               )}
             </div>

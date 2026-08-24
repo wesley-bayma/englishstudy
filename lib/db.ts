@@ -34,8 +34,8 @@ export function getDB(): EnglishHubDB {
 /**
  * Initializes the database. If empty, automatically seeds with the 3,250 canonical items.
  */
-export async function initDatabase(): Promise<void> {
-  if (typeof window === 'undefined') return;
+export async function initDatabase(): Promise<number> {
+  if (typeof window === 'undefined') return 0;
   const db = getDB();
   
   try {
@@ -56,10 +56,13 @@ export async function initDatabase(): Promise<void> {
         const chunk = formattedSeeds.slice(i, i + chunkSize);
         await db.content_items.bulkAdd(chunk);
       }
-      console.log('Seeding complete!');
+      console.log('Seeding complete! 3,250 items added.');
+      return formattedSeeds.length;
     }
+    return count;
   } catch (error) {
     console.error('Error initializing database:', error);
+    return 0;
   }
 }
 
