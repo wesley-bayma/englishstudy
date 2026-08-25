@@ -12,12 +12,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const token = 'hub_auth_' + encodeURIComponent(correctPassword);
+
     // Set auth cookie valid for 60 days
     const response = NextResponse.json({ success: true, message: 'Autenticado com sucesso' });
     
     response.cookies.set({
       name: 'hub_session_token',
-      value: 'authenticated_' + Buffer.from(correctPassword).toString('base64'),
+      value: token,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
