@@ -9,7 +9,7 @@ export class EnglishHubDB extends Dexie {
   daily_queues!: Table<DailyQueue, string>;
 
   constructor() {
-    super('EnglishStudyHubDB');
+    super('EnglishStudyHubDB_v2');
     this.version(1).stores({
       content_items: 'id, normalized_content, type, source, anki_status, original_order, times_encountered, date_added',
       encounters: 'id, content_id, source, created_at',
@@ -32,25 +32,17 @@ export function getDB(): EnglishHubDB {
 }
 
 /**
- * Initializes the database. Auto-seeds and verifies canonical data (3,250 items).
+ * Initializes the database. Auto-seeds the clean canonical 3,250 items.
  */
 export async function initDatabase(): Promise<number> {
   if (typeof window === 'undefined') return 0;
   const db = getDB();
   
   try {
-    const firstVocab = await db.content_items.get('base_vocab_1');
-    const isCorrupted = firstVocab && firstVocab.content !== 'motivation';
     const count = await db.content_items.count();
 
-    if (count === 0 || isCorrupted) {
-      console.log('Seeding / Auto-healing canonical dataset (3,250 items)...');
-      
-      // If corrupted, remove old base items and queues
-      if (isCorrupted) {
-        await db.content_items.where('source').equals('base').delete();
-        await db.daily_queues.clear();
-      }
+    if (count === 0) {
+      console.log('Seeding canonical dataset v2 (3,250 items)...');
 
       const formattedSeeds: ContentItem[] = (seedData as any[]).map(item => ({
         ...item,
@@ -74,6 +66,16 @@ export async function initDatabase(): Promise<number> {
     console.error('Error initializing database:', error);
     return 0;
   }
+}
+
+/**
+ * Hard reset database to clean canonical state
+ */
+export async function hardResetDatabase(): Promise<void> {
+  const db = getDB();
+  await db.delete();
+  dbInstance = new EnglishHubDB();
+  await initDatabase();
 }
 
 /**
