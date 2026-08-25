@@ -20,25 +20,15 @@ export function getFormattedDate(dateStr?: string): string {
 }
 
 /**
- * Shuffles an array with Fisher-Yates while maintaining variety
- */
-function shuffleWithVariety<T>(array: T[]): T[] {
-  const arr = [...array];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
-/**
- * Selects candidate items for a specific content type based on priority rules
+ * Selects candidate items for a specific content type in STRICT sequential order (NEVER RANDOM)
  */
 async function selectItemsForCategory(
   type: ContentType,
   count: number,
   excludeIds: Set<string>
 ): Promise<ContentItem[]> {
+  if (count <= 0) return [];
+
   const db = getDB();
   const allOfType = await db.content_items
     .where('type')
@@ -50,41 +40,41 @@ async function selectItemsForCategory(
     item => item.anki_status === 'not_created' && !excludeIds.has(item.id)
   );
 
-  // 1. Priority 1: Base items naturally encountered (times_encountered > 0)
-  const baseEncountered = pending.filter(i => i.source === 'base' && i.times_encountered > 0);
-  baseEncountered.sort((a, b) => b.times_encountered - a.times_encountered);
-
-  // 2. Priority 2: Inbox items (source !== 'base')
-  const inboxItems = pending.filter(i => i.source !== 'base');
-  inboxItems.sort((a, b) => {
-    if (b.times_encountered !== a.times_encountered) {
-      return b.times_encountered - a.times_encountered;
+  // 1. Priority 1: Naturally encountered items (sorted by highest encounters, then original_order)
+  const encountered = pending.filter(i => (i.times_encountered || 0) > 0);
+  encountered.sort((a, b) => {
+    if ((b.times_encountered || 0) !== (a.times_encountered || 0)) {
+      return (b.times_encountered || 0) - (a.times_encountered || 0);
     }
-    return new Date(b.date_added).getTime() - new Date(a.date_added).getTime();
+    return (a.original_order || 999999) - (b.original_order || 999999);
   });
 
-  // 3. Priority 3: Base items not yet encountered
-  const baseUnseen = pending.filter(i => i.source === 'base' && i.times_encountered === 0);
-  const shuffledBaseUnseen = shuffleWithVariety(baseUnseen);
+  // 2. Priority 2: Inbox items without encounters (sorted deterministically by date_added ascending)
+  const inboxUnseen = pending.filter(i => i.source !== 'base' && (i.times_encountered || 0) === 0);
+  inboxUnseen.sort((a, b) => new Date(a.date_added).getTime() - new Date(b.date_added).getTime());
+
+  // 3. Priority 3: Base items strictly in canonical list order (1, 2, 3, 4, 5...)
+  const baseUnseen = pending.filter(i => i.source === 'base' && (i.times_encountered || 0) === 0);
+  baseUnseen.sort((a, b) => (a.original_order || 0) - (b.original_order || 0));
 
   const selected: ContentItem[] = [];
 
   // Fill from Priority 1
-  for (const item of baseEncountered) {
+  for (const item of encountered) {
     if (selected.length >= count) break;
     selected.push(item);
     excludeIds.add(item.id);
   }
 
   // Fill from Priority 2
-  for (const item of inboxItems) {
+  for (const item of inboxUnseen) {
     if (selected.length >= count) break;
     selected.push(item);
     excludeIds.add(item.id);
   }
 
-  // Fill from Priority 3
-  for (const item of shuffledBaseUnseen) {
+  // Fill from Priority 3 (Strict sequential list order)
+  for (const item of baseUnseen) {
     if (selected.length >= count) break;
     selected.push(item);
     excludeIds.add(item.id);
@@ -94,10 +84,11 @@ async function selectItemsForCategory(
 }
 
 /**
- * Gets or creates today's daily queue, ensuring database is seeded and queue is not empty
+ * Gets or creates today's daily queue in strict sequential order.
+ * When phrases or phrasal verbs run out, the daily target of 10 is automatically filled by remaining vocabulary.
  */
 export async function getOrCreateTodayQueue(
-  goals = { vocabulary: 5, phrases: 3, phrasal_verbs: 2 }
+  totalTarget = 10
 ): Promise<{ queue: DailyQueue; items: ContentItem[] }> {
   const db = getDB();
   const todayStr = getTodayDateString();
@@ -108,18 +99,17 @@ export async function getOrCreateTodayQueue(
 
   let queue = await db.daily_queues.get(queueId);
 
-  // If queue doesn't exist OR was saved empty (e.g. before initial seeding), regenerate it
+  // If queue doesn't exist OR was saved empty, generate it
   if (!queue || !queue.items || queue.items.length === 0) {
-    return await regenerateTodayQueue(goals);
+    return await regenerateTodayQueue(totalTarget);
   }
 
   // Hydrate full content items
   const itemIds = queue.items.map(qi => qi.content_id);
   const hydratedItems = await db.content_items.where('id').anyOf(itemIds).toArray();
 
-  // If hydration returned fewer items (e.g. 0), regenerate
   if (hydratedItems.length === 0) {
-    return await regenerateTodayQueue(goals);
+    return await regenerateTodayQueue(totalTarget);
   }
 
   const idMap = new Map(hydratedItems.map(item => [item.id, item]));
@@ -131,10 +121,13 @@ export async function getOrCreateTodayQueue(
 }
 
 /**
- * Force regenerates today's queue
+ * Force regenerates today's queue in strict sequential order.
+ * - Phrases: up to 3/day (in order #1, #2, #3...)
+ * - Phrasal Verbs: up to 2/day (in order #1, #2...)
+ * - Vocabulary: Remaining count up to 10 (normally 5/day, becomes 8 when phrases end, 7 when PVs end, 10 when both end)
  */
 export async function regenerateTodayQueue(
-  goals = { vocabulary: 5, phrases: 3, phrasal_verbs: 2 }
+  totalTarget = 10
 ): Promise<{ queue: DailyQueue; items: ContentItem[] }> {
   const db = getDB();
   const todayStr = getTodayDateString();
@@ -144,15 +137,24 @@ export async function regenerateTodayQueue(
 
   const excludeIds = new Set<string>();
 
-  const vocabItems = await selectItemsForCategory('vocabulary', goals.vocabulary, excludeIds);
-  const phraseItems = await selectItemsForCategory('survival_phrase', goals.phrases, excludeIds);
-  const pvItems = await selectItemsForCategory('phrasal_verb', goals.phrasal_verbs, excludeIds);
+  // 1. Select up to 3 Survival Phrases
+  const phraseItems = await selectItemsForCategory('survival_phrase', 3, excludeIds);
 
-  const queueItems: DailyQueueItem[] = [
-    ...vocabItems.map(i => ({ content_id: i.id, type: i.type, status: 'pending' as const })),
-    ...phraseItems.map(i => ({ content_id: i.id, type: i.type, status: 'pending' as const })),
-    ...pvItems.map(i => ({ content_id: i.id, type: i.type, status: 'pending' as const }))
-  ];
+  // 2. Select up to 2 Phrasal Verbs
+  const pvItems = await selectItemsForCategory('phrasal_verb', 2, excludeIds);
+
+  // 3. Fill the rest of the daily quota with Vocabulary (sequential order #1, #2, #3...)
+  const neededVocab = Math.max(0, totalTarget - (phraseItems.length + pvItems.length));
+  const vocabItems = await selectItemsForCategory('vocabulary', neededVocab, excludeIds);
+
+  // Assemble queue strictly ordered: Vocabularies (#1..#5), Phrases (#1..#3), Phrasal Verbs (#1..#2)
+  const allSelected = [...vocabItems, ...phraseItems, ...pvItems];
+
+  const queueItems: DailyQueueItem[] = allSelected.map(i => ({
+    content_id: i.id,
+    type: i.type,
+    status: 'pending' as const
+  }));
 
   const queue: DailyQueue = {
     id: queueId,
@@ -164,12 +166,11 @@ export async function regenerateTodayQueue(
 
   await db.daily_queues.put(queue);
 
-  const allSelected = [...vocabItems, ...phraseItems, ...pvItems];
   return { queue, items: allSelected };
 }
 
 /**
- * Skip a queue item and pull a replacement for the same category
+ * Skip a queue item and pull the next sequential replacement for the same category
  */
 export async function skipQueueItem(
   contentId: string,
@@ -187,8 +188,11 @@ export async function skipQueueItem(
 
   const existingIds = new Set(queue.items.map(qi => qi.content_id));
 
-  // Find a replacement item of the same type
-  const replacements = await selectItemsForCategory(type, 1, existingIds);
+  // Find the NEXT sequential item in the list of the same type (or vocab if other category exhausted)
+  let replacements = await selectItemsForCategory(type, 1, existingIds);
+  if (replacements.length === 0) {
+    replacements = await selectItemsForCategory('vocabulary', 1, existingIds);
+  }
 
   const updatedItems = queue.items.map(qi => {
     if (qi.content_id === contentId) {

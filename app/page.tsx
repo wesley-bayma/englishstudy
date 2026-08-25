@@ -23,7 +23,8 @@ import {
   Check, 
   ArrowUpRight,
   RefreshCw,
-  Info
+  Info,
+  ListOrdered
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -140,8 +141,9 @@ export default function TodayPage() {
             <span className="text-sm font-mono font-black text-card-lime capitalize block">
               Hoje: {formattedToday}
             </span>
-            <span className="text-xs text-slate-400 font-mono">
-              Fila diária única ({todayIso}) • 10 conteúdos
+            <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
+              <ListOrdered className="w-3.5 h-3.5 text-card-lime" />
+              Ordem sequencial estrita • {items.length} conteúdos para hoje
             </span>
           </div>
         </div>
@@ -152,17 +154,17 @@ export default function TodayPage() {
             className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-dark-bg hover:bg-dark-border text-slate-300 text-xs font-mono font-bold border border-dark-border transition-colors"
           >
             <Info className="w-3.5 h-3.5 text-card-lime" />
-            {isAuditing ? 'Ocultar Auditoria' : 'Auditar Fila'}
+            {isAuditing ? 'Ocultar Auditoria' : 'Auditar Sequência'}
           </button>
 
           <button
             onClick={handleRegenerate}
             disabled={isRegenerating}
             className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-dark-bg hover:bg-dark-border text-slate-300 text-xs font-mono font-bold border border-dark-border transition-colors"
-            title="Sortear nova seleção para hoje"
+            title="Recarregar sequência de hoje"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRegenerating ? 'animate-spin text-card-lime' : 'text-slate-400'}`} />
-            {isRegenerating ? 'Atualizando...' : 'Regenerar'}
+            {isRegenerating ? 'Atualizando...' : 'Recarregar'}
           </button>
         </div>
       </div>
@@ -172,14 +174,14 @@ export default function TodayPage() {
         <div className="p-6 bg-dark-card border-2 border-card-lime/40 rounded-[32px] text-xs font-mono space-y-4 animate-in fade-in">
           <div className="flex items-center gap-2 text-card-lime font-bold text-sm">
             <CheckCircle2 className="w-5 h-5" />
-            Auditoria da Seleção de Conteúdos ({todayIso}):
+            Sequência Canônica de Hoje ({todayIso}):
           </div>
           <p className="text-slate-300 font-sans text-xs leading-relaxed">
-            Estes são os 10 itens entregues pelo algoritmo para hoje:
+            As palavras e frases seguem rigorosamente a ordem da lista (sem sorteio aleatório).
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
             <div className="p-3 bg-dark-bg rounded-2xl border border-card-pink/30 space-y-1">
-              <span className="text-card-pink font-bold block">5 Vocabulários:</span>
+              <span className="text-card-pink font-bold block">Vocabulário ({vocabItems.length}):</span>
               <ul className="text-slate-300 text-[11px] space-y-0.5">
                 {vocabItems.map(i => (
                   <li key={i.id}>• {i.content} <span className="opacity-60">({i.source === 'base' ? `#${i.original_order}` : 'Inbox'})</span></li>
@@ -188,23 +190,34 @@ export default function TodayPage() {
             </div>
 
             <div className="p-3 bg-dark-bg rounded-2xl border border-card-lime/30 space-y-1">
-              <span className="text-card-lime font-bold block">3 Frases:</span>
-              <ul className="text-slate-300 text-[11px] space-y-0.5">
-                {phraseItems.map(i => (
-                  <li key={i.id}>• {i.content}</li>
-                ))}
-              </ul>
+              <span className="text-card-lime font-bold block">Frases ({phraseItems.length}):</span>
+              {phraseItems.length === 0 ? (
+                <span className="text-slate-500 text-[11px] italic">Frases concluídas!</span>
+              ) : (
+                <ul className="text-slate-300 text-[11px] space-y-0.5">
+                  {phraseItems.map(i => (
+                    <li key={i.id}>• {i.content} <span className="opacity-60">({i.source === 'base' ? `#${i.original_order}` : 'Inbox'})</span></li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             <div className="p-3 bg-dark-bg rounded-2xl border border-card-amber/30 space-y-1">
-              <span className="text-card-amber font-bold block">2 Phrasal Verbs:</span>
-              <ul className="text-slate-300 text-[11px] space-y-0.5">
-                {pvItems.map(i => (
-                  <li key={i.id}>• {i.content}</li>
-                ))}
-              </ul>
+              <span className="text-card-amber font-bold block">Phrasal Verbs ({pvItems.length}):</span>
+              {pvItems.length === 0 ? (
+                <span className="text-slate-500 text-[11px] italic">Phrasal verbs concluídos!</span>
+              ) : (
+                <ul className="text-slate-300 text-[11px] space-y-0.5">
+                  {pvItems.map(i => (
+                    <li key={i.id}>• {i.content} <span className="opacity-60">({i.source === 'base' ? `#${i.original_order}` : 'Inbox'})</span></li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
+          <p className="text-[11px] text-slate-400 border-t border-dark-border pt-2">
+            📌 <strong>Regra de transição:</strong> Quando as frases (#100) e os phrasal verbs (#150) terminarem, a cota diária de 10 continuará sendo preenchida exclusivamente pelas palavras de vocabulário da sequência.
+          </p>
         </div>
       )}
 
@@ -212,13 +225,13 @@ export default function TodayPage() {
       <div className="space-y-6">
         <div className="space-y-3">
           <span className="text-xs font-mono font-bold tracking-widest text-card-lime uppercase">
-            // Curadoria Diária para Anki
+            // Curadoria Diária Sequencial
           </span>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tighter text-white leading-[1.05]">
             Conteúdos de Hoje.
           </h1>
           <p className="text-sm sm:text-base text-slate-400 font-medium max-w-xl">
-            Pesquise suas frases no seu contexto de estudo e crie manualmente seus cards no Anki.
+            {vocabItems.length} vocabulários, {phraseItems.length} frases e {pvItems.length} phrasal verbs na ordem da lista para você estudar e criar no Anki.
           </p>
         </div>
 
@@ -242,8 +255,8 @@ export default function TodayPage() {
             className="text-left space-y-1 group"
           >
             <span className="text-xs font-mono text-card-pink uppercase tracking-wider block group-hover:underline">01. Vocabulário</span>
-            <div className="text-2xl font-black text-white font-mono">{vocabDone}/5</div>
-            <span className="text-[11px] text-slate-500 font-medium block">palavras do dia</span>
+            <div className="text-2xl font-black text-white font-mono">{vocabDone}/{vocabItems.length}</div>
+            <span className="text-[11px] text-slate-500 font-medium block">ordem da lista</span>
           </button>
 
           {/* Frases */}
@@ -252,8 +265,8 @@ export default function TodayPage() {
             className="text-left space-y-1 group"
           >
             <span className="text-xs font-mono text-card-lime uppercase tracking-wider block group-hover:underline">02. Frases</span>
-            <div className="text-2xl font-black text-white font-mono">{phraseDone}/3</div>
-            <span className="text-[11px] text-slate-500 font-medium block">sobrevivência prática</span>
+            <div className="text-2xl font-black text-white font-mono">{phraseDone}/{phraseItems.length}</div>
+            <span className="text-[11px] text-slate-500 font-medium block">ordem da lista</span>
           </button>
 
           {/* Phrasal Verbs */}
@@ -262,8 +275,8 @@ export default function TodayPage() {
             className="text-left space-y-1 group"
           >
             <span className="text-xs font-mono text-card-amber uppercase tracking-wider block group-hover:underline">03. Phrasal Verbs</span>
-            <div className="text-2xl font-black text-white font-mono">{pvDone}/2</div>
-            <span className="text-[11px] text-slate-500 font-medium block">alta frequência</span>
+            <div className="text-2xl font-black text-white font-mono">{pvDone}/{pvItems.length}</div>
+            <span className="text-[11px] text-slate-500 font-medium block">ordem da lista</span>
           </button>
         </div>
 
@@ -271,7 +284,7 @@ export default function TodayPage() {
           <div className="p-4 bg-card-lime/10 border-2 border-card-lime rounded-2xl flex items-center gap-3 text-card-lime text-xs font-bold animate-in fade-in">
             <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
             <span>
-              Parabéns! Você concluiu todos os 10 conteúdos de hoje no Anki.
+              Parabéns! Você concluiu todos os {totalTarget} conteúdos de hoje no Anki.
             </span>
           </div>
         )}
@@ -287,7 +300,7 @@ export default function TodayPage() {
               : 'bg-dark-card text-slate-400 hover:text-white border border-dark-border'
           }`}
         >
-          Todos os 10 Itens ({items.length})
+          Todos os Itens ({items.length})
         </button>
 
         <button
@@ -298,47 +311,51 @@ export default function TodayPage() {
               : 'bg-dark-card text-card-pink hover:bg-dark-border border border-dark-border'
           }`}
         >
-          Vocabulário (5)
+          Vocabulário ({vocabItems.length})
         </button>
 
-        <button
-          onClick={() => setActiveTypeFilter('survival_phrase')}
-          className={`px-4 py-2 rounded-full transition-all ${
-            activeTypeFilter === 'survival_phrase'
-              ? 'bg-card-lime text-dark-bg font-black shadow-sm'
-              : 'bg-dark-card text-card-lime hover:bg-dark-border border border-dark-border'
-          }`}
-        >
-          Frases (3)
-        </button>
+        {phraseItems.length > 0 && (
+          <button
+            onClick={() => setActiveTypeFilter('survival_phrase')}
+            className={`px-4 py-2 rounded-full transition-all ${
+              activeTypeFilter === 'survival_phrase'
+                ? 'bg-card-lime text-dark-bg font-black shadow-sm'
+                : 'bg-dark-card text-card-lime hover:bg-dark-border border border-dark-border'
+            }`}
+          >
+            Frases ({phraseItems.length})
+          </button>
+        )}
 
-        <button
-          onClick={() => setActiveTypeFilter('phrasal_verb')}
-          className={`px-4 py-2 rounded-full transition-all ${
-            activeTypeFilter === 'phrasal_verb'
-              ? 'bg-card-amber text-dark-bg font-black shadow-sm'
-              : 'bg-dark-card text-card-amber hover:bg-dark-border border border-dark-border'
-          }`}
-        >
-          Phrasal Verbs (2)
-        </button>
+        {pvItems.length > 0 && (
+          <button
+            onClick={() => setActiveTypeFilter('phrasal_verb')}
+            className={`px-4 py-2 rounded-full transition-all ${
+              activeTypeFilter === 'phrasal_verb'
+                ? 'bg-card-amber text-dark-bg font-black shadow-sm'
+                : 'bg-dark-card text-card-amber hover:bg-dark-border border border-dark-border'
+            }`}
+          >
+            Phrasal Verbs ({pvItems.length})
+          </button>
+        )}
       </div>
 
       {/* Modern Content Cards Grid */}
       {loading ? (
         <div className="py-20 text-center text-slate-400 font-mono text-sm">
-          // Carregando conteúdos de hoje...
+          // Carregando conteúdos de hoje na ordem da lista...
         </div>
       ) : filteredItems.length === 0 ? (
         <div className="bg-dark-card rounded-[32px] p-12 text-center border border-dark-border space-y-4">
           <p className="text-slate-300 text-sm font-semibold">
-            Nenhum item carregado nesta visualização.
+            Nenhum item pendente nesta categoria.
           </p>
           <button
             onClick={handleRegenerate}
             className="px-6 py-3 bg-card-lime text-dark-bg rounded-full text-xs font-black shadow-lg"
           >
-            Carregar 10 Conteúdos de Hoje
+            Recarregar Fila
           </button>
         </div>
       ) : (
