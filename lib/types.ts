@@ -92,6 +92,29 @@ export interface AppSettings {
   daily_phrasal_goal: number;
 }
 
+export interface CollocationItem {
+  en: string;
+  pt: string;
+}
+
+export interface ExampleSentenceItem {
+  en: string;
+  pt: string;
+}
+
+export interface StudySheet {
+  term: string;
+  ipa: string;
+  grammatical_class: string;
+  translation: string;
+  connotation_usage?: string;
+  useful_structures?: string[];
+  collocations: CollocationItem[];
+  examples: ExampleSentenceItem[];
+  related_words: string[];
+  tip_warning: string;
+}
+
 export interface VerificationResult {
   exact_match: ContentItem | null;
   heuristic_match: ContentItem | null;

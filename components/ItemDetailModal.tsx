@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ContentItem, Encounter, GeminiAnalysisResult } from '../lib/types';
+import { ContentItem, Encounter, StudySheet } from '../lib/types';
 import { getItemEncounters, toggleAnkiStatus } from '../lib/db';
-import { analyzeWithGemini } from '../lib/gemini';
+import { getStudySheetWithGemini } from '../lib/gemini';
+import { StudySheetView } from './StudySheetView';
 import { 
   X, 
   Flame, 
@@ -30,13 +31,17 @@ export function ItemDetailModal({
   onOpenEncounterModal
 }: ItemDetailModalProps) {
   const [encounters, setEncounters] = useState<Encounter[]>([]);
-  const [aiAnalysis, setAiAnalysis] = useState<GeminiAnalysisResult | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [sheet, setSheet] = useState<StudySheet | null>(null);
+  const [isLoadingSheet, setIsLoadingSheet] = useState(false);
 
   useEffect(() => {
     if (item && isOpen) {
       getItemEncounters(item.id).then(setEncounters);
-      setAiAnalysis(null);
+      setIsLoadingSheet(true);
+      getStudySheetWithGemini(item.content, item.type, item.meaning_pt || '')
+        .then(res => setSheet(res))
+        .catch(err => console.error('Failed to load study sheet:', err))
+        .finally(() => setIsLoadingSheet(false));
     }
   }, [item, isOpen]);
 
@@ -52,23 +57,11 @@ export function ItemDetailModal({
     }
   };
 
-  const handleRunAiAnalysis = async () => {
-    setIsAnalyzing(true);
-    try {
-      const res = await analyzeWithGemini(item.content, [], item.example || '');
-      setAiAnalysis(res);
-    } catch (err) {
-      console.error('AI Analysis failed:', err);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
   const isCreated = item.anki_status === 'created';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-dark-bg/85 backdrop-blur-xl animate-in fade-in duration-150">
-      <div className="bg-dark-card rounded-[32px] w-full max-w-xl shadow-2xl border border-dark-border overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-dark-card rounded-[32px] w-full max-w-2xl shadow-2xl border border-dark-border overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="p-6 border-b border-dark-border flex items-start justify-between bg-dark-bg/40">
           <div>
@@ -103,62 +96,62 @@ export function ItemDetailModal({
         </div>
 
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto space-y-6 divide-y divide-dark-border">
-          {/* Quick Info & Action Buttons */}
-          <div className="space-y-4">
-            {item.meaning_pt && (
-              <div>
-                <span className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">Significado / Tradução</span>
-                <p className="text-lg text-slate-100 font-semibold">{item.meaning_pt}</p>
-              </div>
-            )}
+        <div className="p-6 overflow-y-auto space-y-6">
+          {/* Action Row */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleToggleAnki}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs font-black transition-all ${
+                isCreated
+                  ? 'bg-dark-border text-slate-300 hover:bg-slate-700'
+                  : 'bg-card-lime text-dark-bg hover:bg-card-limeDark shadow-lg shadow-card-lime/10 active:scale-95'
+              }`}
+            >
+              {isCreated ? (
+                <>
+                  <RotateCcw className="w-4 h-4" />
+                  Marcado no Anki (Desmarcar)
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4 stroke-[3]" />
+                  Marcar como Criado no Anki
+                </>
+              )}
+            </button>
 
-            {/* Toggle Anki and Add Encounter Buttons */}
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                onClick={handleToggleAnki}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs font-black transition-all ${
-                  isCreated
-                    ? 'bg-dark-border text-slate-300 hover:bg-slate-700'
-                    : 'bg-card-lime text-dark-bg hover:bg-card-limeDark shadow-lg shadow-card-lime/10 active:scale-95'
-                }`}
-              >
-                {isCreated ? (
-                  <>
-                    <RotateCcw className="w-4 h-4" />
-                    Marcado no Anki (Desmarcar)
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-4 h-4 stroke-[3]" />
-                    Marcar como Criado no Anki
-                  </>
-                )}
-              </button>
-
-              <button
-                onClick={() => {
-                  onClose();
-                  onOpenEncounterModal(item);
-                }}
-                className="flex items-center gap-1.5 py-3 px-4 rounded-2xl text-xs font-bold bg-dark-card text-rose-400 border border-rose-500/30 hover:bg-rose-500/10 transition-colors"
-              >
-                <Flame className="w-4 h-4 fill-rose-500 text-rose-500" />
-                + Encontro
-              </button>
-            </div>
+            <button
+              onClick={() => {
+                onClose();
+                onOpenEncounterModal(item);
+              }}
+              className="flex items-center gap-1.5 py-3 px-4 rounded-2xl text-xs font-bold bg-dark-card text-rose-400 border border-rose-500/30 hover:bg-rose-500/10 transition-colors"
+            >
+              <Flame className="w-4 h-4 fill-rose-500 text-rose-500" />
+              + Encontro
+            </button>
           </div>
 
+          {/* Full Pedagogical Study Sheet */}
+          {isLoadingSheet ? (
+            <div className="p-8 text-center bg-dark-bg rounded-3xl border border-dark-border space-y-2">
+              <Sparkles className="w-6 h-6 animate-spin text-card-lime mx-auto" />
+              <p className="text-xs font-mono text-slate-400">
+                Carregando ficha de estudo completa (Pronúncia, 4 colocações, 5 exemplos)...
+              </p>
+            </div>
+          ) : sheet ? (
+            <StudySheetView sheet={sheet} number={item.original_order || undefined} />
+          ) : null}
+
           {/* Encounters History */}
-          <div className="pt-5">
-            <h3 className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 text-slate-400" />
-              Histórico de Encontros Naturais ({encounters.length})
-            </h3>
-            {encounters.length === 0 ? (
-              <p className="text-xs text-slate-500 italic">Nenhum encontro adicional registrado.</p>
-            ) : (
-              <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+          {encounters.length > 0 && (
+            <div className="pt-4 border-t border-dark-border">
+              <h3 className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <Calendar className="w-4 h-4 text-slate-400" />
+                Histórico de Encontros Naturais ({encounters.length})
+              </h3>
+              <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
                 {encounters.map((enc) => (
                   <div key={enc.id} className="text-xs bg-dark-bg p-3 rounded-2xl border border-dark-border">
                     <div className="flex items-center justify-between font-bold text-slate-200 mb-0.5">
@@ -173,39 +166,8 @@ export function ItemDetailModal({
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-
-          {/* Gemini Flash Assistant */}
-          <div className="pt-5">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-card-lime" />
-                Consultar com Gemini Flash
-              </h3>
-              {!aiAnalysis && (
-                <button
-                  onClick={handleRunAiAnalysis}
-                  disabled={isAnalyzing}
-                  className="px-3 py-1 bg-dark-bg hover:bg-dark-border text-card-lime border border-card-lime/30 rounded-full text-xs font-bold flex items-center gap-1 transition-colors"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  {isAnalyzing ? 'Analisando...' : 'Analisar Significado'}
-                </button>
-              )}
             </div>
-
-            {aiAnalysis && (
-              <div className="bg-dark-bg border border-dark-border rounded-2xl p-4 text-xs space-y-2 font-mono">
-                <p className="text-slate-200">{aiAnalysis.explanation}</p>
-                {aiAnalysis.suggested_example && (
-                  <p className="text-card-lime italic p-2 bg-dark-card rounded-xl border border-dark-border">
-                    &ldquo;{aiAnalysis.suggested_example}&rdquo;
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </div>

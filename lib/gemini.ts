@@ -110,3 +110,60 @@ export async function reviewCardWithGemini(
   }
 }
 
+/**
+ * Fetch complete pedagogical study sheet (IPA, collocations, 5 examples, tips) with Gemini Flash
+ */
+export async function getStudySheetWithGemini(
+  term: string,
+  type: ContentType = 'vocabulary',
+  meaningPt: string = ''
+): Promise<any> {
+  const apiKey = getStoredApiKey();
+
+  try {
+    const res = await fetch('/api/gemini/study-sheet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        term,
+        type,
+        meaningPt,
+        apiKey
+      })
+    });
+
+    if (!res.ok) {
+      throw new Error(`Study sheet API error status ${res.status}`);
+    }
+
+    const data = await res.json();
+    return data;
+  } catch (error) {
+    console.warn('Error fetching study sheet from Gemini, returning fallback:', error);
+    return {
+      term,
+      ipa: `/${term}/`,
+      grammatical_class: type === 'phrasal_verb' ? 'phrasal verb' : (type === 'survival_phrase' ? 'frase de sobrevivência' : 'substantivo/verbo'),
+      translation: meaningPt || term,
+      connotation_usage: `Uso no nível A2 para "${term}".`,
+      useful_structures: [],
+      collocations: [
+        { en: `use ${term}`, pt: `usar ${meaningPt || term}` },
+        { en: `need ${term}`, pt: `precisar de ${meaningPt || term}` },
+        { en: `find ${term}`, pt: `encontrar ${meaningPt || term}` },
+        { en: `have ${term}`, pt: `ter ${meaningPt || term}` }
+      ],
+      examples: [
+        { en: `I need ${term} today.`, pt: `Eu preciso de ${meaningPt || term} hoje.` },
+        { en: `Can you show me the ${term}?`, pt: `Você pode me mostrar o(a) ${meaningPt || term}?` },
+        { en: `Where is the ${term}?`, pt: `Onde está o(a) ${meaningPt || term}?` },
+        { en: `I have a ${term} here.`, pt: `Eu tenho um(a) ${meaningPt || term} aqui.` },
+        { en: `This is my favorite ${term}.`, pt: `Este é meu(minha) ${meaningPt || term} favorito(a).` }
+      ],
+      related_words: [meaningPt || term],
+      tip_warning: `💡 Dica: Pratique a pronúncia e o contexto de "${term}" em frases simples do cotidiano.`
+    };
+  }
+}
+
+

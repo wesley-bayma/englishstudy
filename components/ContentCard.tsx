@@ -215,14 +215,15 @@ export function ContentCard({
             </button>
           )}
 
-          {/* Details / Encounter */}
+          {/* Details / Study Sheet */}
           {onViewDetails && (
             <button
               onClick={() => onViewDetails(item)}
-              className={`w-10 h-10 rounded-full border-2 flex items-center justify-center transition-transform active:scale-95 ${theme.btnBorder}`}
-              title="Ver detalhes / histórico"
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full border-2 text-xs font-mono font-bold transition-transform active:scale-95 ${theme.btnBorder}`}
+              title="Ver Ficha de Estudo Completa (Pronúncia, 4 colocações, 5 exemplos)"
             >
-              <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+              <span>Ficha</span>
+              <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
             </button>
           )}
         </div>
