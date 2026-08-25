@@ -29,13 +29,23 @@ export function Navbar() {
       {/* Top Header - Desktop & Tablet */}
       <header className="sticky top-0 z-30 bg-dark-bg/85 backdrop-blur-xl border-b border-dark-border">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 group">
-            <span className="text-2xl font-black tracking-tighter text-white group-hover:text-card-lime transition-colors">
-              hub<span className="text-card-lime font-mono">.</span>
-            </span>
-            <span className="text-[11px] font-mono uppercase tracking-widest text-dark-muted px-2 py-0.5 rounded-full border border-dark-border/60 ml-2 hidden sm:inline-block">
-              English Anki Hub
-            </span>
+          <Link href="/" className="flex items-center gap-3 group">
+            {/* Custom Brand Geometric Icon */}
+            <div className="w-10 h-10 rounded-2xl bg-dark-card border border-dark-border flex items-center justify-center p-2 group-hover:border-card-lime transition-colors shadow-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" className="w-full h-full">
+                <path d="M 0 20 C 0 8.954 8.954 0 20 0 L 35 0 C 35 19.33 19.33 35 0 35 Z" fill="#bef264" />
+                <path d="M 80 60 C 80 71.046 71.046 80 60 80 L 45 80 C 45 60.67 60.67 45 80 45 Z" fill="#bef264" />
+                <circle cx="40" cy="40" r="14" fill="#f9a8d4" />
+              </svg>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-black tracking-tighter text-white group-hover:text-card-lime transition-colors">
+                hub<span className="text-card-lime font-mono">.</span>
+              </span>
+              <span className="text-[11px] font-mono uppercase tracking-widest text-dark-muted px-2 py-0.5 rounded-full border border-dark-border/60 ml-1 hidden sm:inline-block">
+                English Anki Hub
+              </span>
+            </div>
           </Link>
 
           {/* Desktop Navigation Links */}
