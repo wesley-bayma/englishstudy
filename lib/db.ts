@@ -32,16 +32,26 @@ export function getDB(): EnglishHubDB {
 }
 
 /**
- * Initializes the database. If empty, automatically seeds with the 3,250 canonical items.
+ * Initializes the database. Auto-seeds and verifies canonical data (3,250 items).
  */
 export async function initDatabase(): Promise<number> {
   if (typeof window === 'undefined') return 0;
   const db = getDB();
   
   try {
+    const firstVocab = await db.content_items.get('base_vocab_1');
+    const isCorrupted = firstVocab && firstVocab.content !== 'motivation';
     const count = await db.content_items.count();
-    if (count === 0) {
-      console.log('Database empty. Seeding with canonical data (3,250 items)...');
+
+    if (count === 0 || isCorrupted) {
+      console.log('Seeding / Auto-healing canonical dataset (3,250 items)...');
+      
+      // If corrupted, remove old base items and queues
+      if (isCorrupted) {
+        await db.content_items.where('source').equals('base').delete();
+        await db.daily_queues.clear();
+      }
+
       const formattedSeeds: ContentItem[] = (seedData as any[]).map(item => ({
         ...item,
         normalized_content: item.normalized_content || normalizeContent(item.content),
@@ -54,9 +64,9 @@ export async function initDatabase(): Promise<number> {
       const chunkSize = 500;
       for (let i = 0; i < formattedSeeds.length; i += chunkSize) {
         const chunk = formattedSeeds.slice(i, i + chunkSize);
-        await db.content_items.bulkAdd(chunk);
+        await db.content_items.bulkPut(chunk);
       }
-      console.log('Seeding complete! 3,250 items added.');
+      console.log('Seeding complete! 3,250 clean canonical items ready.');
       return formattedSeeds.length;
     }
     return count;

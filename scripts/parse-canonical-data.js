@@ -1,30 +1,25 @@
 const fs = require('fs');
 const path = require('path');
 
-const docPath = path.join(__dirname, '..', 'documento canonico-english-leia-aqui.md');
-const content = fs.readFileSync(docPath, 'utf8');
+const mdPath = path.join(__dirname, '..', 'documento canonico-english-leia-aqui.md');
+const rawText = fs.readFileSync(mdPath, 'utf8');
 
-function normalizeContent(text) {
-  if (!text) return '';
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[.,/#!$%^&*;:{}=\-_`~()?"'’]/g, '')
-    .replace(/\s+/g, ' ');
+// 1. EXTRACT 3000 VOCABULARY WORDS
+const vocabStartIndex = rawText.indexOf('# **3000 palavras em inglês para o cotidiano**');
+const phrasesStartIndex = rawText.indexOf('# **100 FRASES DE SOBREVIVÊNCIA EM INGLÊS**');
+const pvStartIndex = rawText.indexOf('**150 PHRASAL VERBS MAIS FREQUENTES**');
+
+if (vocabStartIndex === -1 || phrasesStartIndex === -1 || pvStartIndex === -1) {
+  console.error('Indices not found:', { vocabStartIndex, phrasesStartIndex, pvStartIndex });
+  process.exit(1);
 }
 
-// 1. Parse 3000 Vocabulary words
-const vocabMap = new Map();
-// Look for pattern: <number>\. <word> or <number>. <word>
-// The words are in sections GRUPO A, GRUPO B, GRUPO C
-const vocabRegex = /(\d+)(?:\\)?\.\s+([a-zA-Z0-9\-\']+)/g;
+const vocabText = rawText.slice(vocabStartIndex, phrasesStartIndex);
+const vocabRegex = /(\d+)\\\.\s+([a-zA-Z0-9\-]+)/g;
 let match;
+const vocabMap = new Map();
 
-// We isolate the vocabulary section up to "100 FRASES DE SOBREVIVÊNCIA"
-const vocabSectionEnd = content.indexOf('100 FRASES DE SOBREVIVÊNCIA');
-const vocabSection = content.slice(0, vocabSectionEnd);
-
-while ((match = vocabRegex.exec(vocabSection)) !== null) {
+while ((match = vocabRegex.exec(vocabText)) !== null) {
   const num = parseInt(match[1], 10);
   const word = match[2].trim();
   if (num >= 1 && num <= 3000 && !vocabMap.has(num)) {
@@ -32,165 +27,122 @@ while ((match = vocabRegex.exec(vocabSection)) !== null) {
   }
 }
 
-console.log(`Parsed ${vocabMap.size} vocabulary words.`);
+console.log(`Parsed ${vocabMap.size} vocabulary words (Expected 3000).`);
 
-// Check for missing vocabulary indices
-const missingVocab = [];
+const vocabItems = [];
 for (let i = 1; i <= 3000; i++) {
-  if (!vocabMap.has(i)) {
-    missingVocab.push(i);
+  const word = vocabMap.get(i);
+  if (!word) {
+    console.warn(`Missing vocab #${i}`);
   }
-}
-if (missingVocab.length > 0) {
-  console.log(`Missing vocab indices (${missingVocab.length}):`, missingVocab.slice(0, 10));
-}
-
-// 2. Parse 100 Survival Phrases
-// Look in section between "100 FRASES DE SOBREVIVÊNCIA" and "150 PHRASAL VERBS"
-const phrasesSectionStart = content.indexOf('100 FRASES DE SOBREVIVÊNCIA');
-const phrasesSectionEnd = content.indexOf('150 PHRASAL VERBS');
-const phrasesSection = content.slice(phrasesSectionStart, phrasesSectionEnd);
-
-const phrasesMap = new Map();
-// Match lines like: 1\. Where is the nearest subway station? — Onde fica a estação de metrô mais próxima?
-const phraseLines = phrasesSection.split('\n');
-const phraseRegex = /^(\d+)(?:\\)?\.\s*(.+?)\s*—\s*(.+)$/;
-
-for (const rawLine of phraseLines) {
-  const line = rawLine.trim().replace(/\\!/g, '!').replace(/\\\./g, '.');
-  const pMatch = line.match(/^(\d+)\.\s*(.+?)\s*—\s*(.+)$/);
-  if (pMatch) {
-    const num = parseInt(pMatch[1], 10);
-    const eng = pMatch[2].trim();
-    const pt = pMatch[3].trim();
-    phrasesMap.set(num, { english: eng, portuguese: pt });
-  }
-}
-
-console.log(`Parsed ${phrasesMap.size} survival phrases.`);
-
-// 3. Parse 150 Phrasal Verbs
-const pvSectionStart = content.indexOf('150 PHRASAL VERBS');
-const pvSection = content.slice(pvSectionStart);
-
-const pvMap = new Map();
-// Blocks like:
-// 1\. GO ON — acontecer; continuar/prosseguir
-// Ex.: What’s going on here?
-const pvBlocks = pvSection.split(/(?=\n\d+(?:\\)?\.\s+[A-Z])/);
-
-for (const block of pvBlocks) {
-  const headMatch = block.match(/(\d+)(?:\\)?\.\s+([A-Z\s\(\)\/]+?)\s*—\s*([^\n\r]+)/);
-  if (headMatch) {
-    const num = parseInt(headMatch[1], 10);
-    let pvName = headMatch[2].trim();
-    const meaning = headMatch[3].trim().replace(/\\!/g, '!').replace(/\\\./g, '.');
-    
-    // Example sentence
-    const exMatch = block.match(/Ex\.:\s*([^\n\r]+)/);
-    const example = exMatch ? exMatch[1].trim().replace(/\\!/g, '!').replace(/\\\./g, '.') : '';
-    
-    pvMap.set(num, {
-      content: pvName.toLowerCase(),
-      original_content: pvName,
-      meaning_pt: meaning,
-      example: example
-    });
-  }
-}
-
-console.log(`Parsed ${pvMap.size} phrasal verbs.`);
-
-// Build seed items array
-const items = [];
-const now = new Date().toISOString();
-
-// Vocabulary
-for (let i = 1; i <= 3000; i++) {
-  const word = vocabMap.get(i) || `word_${i}`;
-  items.push({
-    id: `base-vocab-${i}`,
-    content: word,
-    normalized_content: normalizeContent(word),
+  vocabItems.push({
+    id: `base_vocab_${i}`,
+    content: word || `word_${i}`,
+    normalized_content: (word || `word_${i}`).toLowerCase().replace(/[^a-z0-9]/g, ''),
     type: 'vocabulary',
     source: 'base',
-    source_detail: 'Documento Canônico',
-    source_url: null,
-    timestamp_marker: null,
     original_order: i,
     anki_status: 'not_created',
-    anki_created_at: null,
-    date_added: now,
     times_encountered: 0,
-    last_encountered: null,
     meaning_pt: null,
     example: null,
-    base_form: word,
-    notes: null
+    notes: null,
+    base_form: word || null,
+    date_added: '2026-08-24T00:00:00.000Z'
   });
 }
 
-// Survival Phrases
+// 2. EXTRACT 100 SURVIVAL PHRASES
+const phraseText = rawText.slice(phrasesStartIndex, pvStartIndex);
+const phraseLines = phraseText.split('\n');
+const phraseMap = new Map();
+
+for (const line of phraseLines) {
+  const lineMatch = line.match(/^(\d+)\\\.\s+(.*?)\s+[—–-]\s+(.*)$/);
+  if (lineMatch) {
+    const num = parseInt(lineMatch[1], 10);
+    const phrase = lineMatch[2].trim().replace(/\\/g, '');
+    const meaning = lineMatch[3].trim().replace(/\\/g, '');
+    phraseMap.set(num, { phrase, meaning });
+  }
+}
+
+console.log(`Parsed ${phraseMap.size} survival phrases (Expected 100).`);
+
+const phraseItems = [];
 for (let i = 1; i <= 100; i++) {
-  const phrase = phrasesMap.get(i);
-  if (phrase) {
-    items.push({
-      id: `base-phrase-${i}`,
-      content: phrase.english,
-      normalized_content: normalizeContent(phrase.english),
-      type: 'survival_phrase',
-      source: 'base',
-      source_detail: 'Documento Canônico',
-      source_url: null,
-      timestamp_marker: null,
-      original_order: i,
-      anki_status: 'not_created',
-      anki_created_at: null,
-      date_added: now,
-      times_encountered: 0,
-      last_encountered: null,
-      meaning_pt: phrase.portuguese,
-      example: phrase.english,
-      base_form: phrase.english,
-      notes: null
-    });
+  const data = phraseMap.get(i) || { phrase: `Phrase #${i}`, meaning: '' };
+  phraseItems.push({
+    id: `base_phrase_${i}`,
+    content: data.phrase,
+    normalized_content: data.phrase.toLowerCase().replace(/[^a-z0-9]/g, ''),
+    type: 'survival_phrase',
+    source: 'base',
+    original_order: i,
+    anki_status: 'not_created',
+    times_encountered: 0,
+    meaning_pt: data.meaning || null,
+    example: null,
+    notes: null,
+    base_form: null,
+    date_added: '2026-08-24T00:00:00.000Z'
+  });
+}
+
+// 3. EXTRACT 150 PHRASAL VERBS
+const pvText = rawText.slice(pvStartIndex);
+const pvLines = pvText.split('\n');
+const pvMap = new Map();
+
+let currentPv = null;
+
+for (let i = 0; i < pvLines.length; i++) {
+  const line = pvLines[i].trim();
+  const pvHeaderMatch = line.match(/^(\d+)\\\.\s+([A-Z\s()]+)\s+[—–-]\s+(.*)$/);
+  if (pvHeaderMatch) {
+    const num = parseInt(pvHeaderMatch[1], 10);
+    const pvName = pvHeaderMatch[2].trim().replace(/\\/g, '').toLowerCase();
+    const meaning = pvHeaderMatch[3].trim().replace(/\\/g, '');
+    currentPv = { num, pvName, meaning, example: '' };
+    pvMap.set(num, currentPv);
+    continue;
+  }
+
+  if (currentPv && line.startsWith('Ex.:')) {
+    currentPv.example = line.replace(/^Ex\.:\s*/, '').replace(/\\/g, '').trim();
   }
 }
 
-// Phrasal Verbs
+console.log(`Parsed ${pvMap.size} phrasal verbs (Expected 150).`);
+
+const pvItems = [];
 for (let i = 1; i <= 150; i++) {
-  const pv = pvMap.get(i);
-  if (pv) {
-    items.push({
-      id: `base-pv-${i}`,
-      content: pv.content,
-      normalized_content: normalizeContent(pv.content),
-      type: 'phrasal_verb',
-      source: 'base',
-      source_detail: 'Documento Canônico',
-      source_url: null,
-      timestamp_marker: null,
-      original_order: i,
-      anki_status: 'not_created',
-      anki_created_at: null,
-      date_added: now,
-      times_encountered: 0,
-      last_encountered: null,
-      meaning_pt: pv.meaning_pt,
-      example: pv.example,
-      base_form: pv.content,
-      notes: null
-    });
-  }
+  const data = pvMap.get(i) || { pvName: `PV #${i}`, meaning: '', example: '' };
+  pvItems.push({
+    id: `base_pv_${i}`,
+    content: data.pvName,
+    normalized_content: data.pvName.toLowerCase().replace(/[^a-z0-9]/g, ''),
+    type: 'phrasal_verb',
+    source: 'base',
+    original_order: i,
+    anki_status: 'not_created',
+    times_encountered: 0,
+    meaning_pt: data.meaning || null,
+    example: data.example || null,
+    notes: null,
+    base_form: data.pvName,
+    date_added: '2026-08-24T00:00:00.000Z'
+  });
 }
 
-console.log(`Total seed items created: ${items.length}`);
+const allItems = [...vocabItems, ...phraseItems, ...pvItems];
+console.log(`Total canonical items generated: ${allItems.length} (Expected 3250)`);
 
-// Ensure data folder exists
-const outDir = path.join(__dirname, '..', 'data');
-if (!fs.existsSync(outDir)) {
-  fs.mkdirSync(outDir, { recursive: true });
-}
+console.log('\n--- VERIFICATION OF FIRST 10 ITEMS (DAY 1) ---');
+console.log('5 Vocabularies:', vocabItems.slice(0, 5).map(v => `#${v.original_order} ${v.content}`));
+console.log('3 Survival Phrases:', phraseItems.slice(0, 3).map(p => `#${p.original_order} ${p.content} (${p.meaning_pt})`));
+console.log('2 Phrasal Verbs:', pvItems.slice(0, 2).map(pv => `#${pv.original_order} ${pv.content} (${pv.meaning_pt})`));
 
-fs.writeFileSync(path.join(outDir, 'seed-data.json'), JSON.stringify(items, null, 2), 'utf8');
-console.log(`Successfully written to data/seed-data.json`);
+const outputPath = path.join(__dirname, '..', 'data', 'seed-data.json');
+fs.writeFileSync(outputPath, JSON.stringify(allItems, null, 2), 'utf8');
+console.log(`\nSuccessfully saved clean canonical dataset to ${outputPath}!`);
