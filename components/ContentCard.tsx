@@ -1,15 +1,20 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ContentItem, ContentType, ContentSource } from '../lib/types';
+import { generateSentencesWithGemini, GeneratedSentenceOption } from '../lib/gemini';
 import { 
   Check, 
   RotateCcw, 
   Flame, 
-  Clock, 
   Eye, 
   ArrowRight, 
-  SkipForward 
+  SkipForward,
+  Sparkles,
+  Copy,
+  ChevronDown,
+  ChevronUp,
+  Volume2
 } from 'lucide-react';
 
 interface ContentCardProps {
@@ -33,6 +38,13 @@ export function ContentCard({
   onAddEncounter,
   highlightMatch = false
 }: ContentCardProps) {
+  const [showSentences, setShowSentences] = useState(false);
+  const [sentences, setSentences] = useState<GeneratedSentenceOption[]>([]);
+  const [ipa, setIpa] = useState<string | null>(null);
+  const [isLoadingSentences, setIsLoadingSentences] = useState(false);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
+
   const isCreated = item.anki_status === 'created';
 
   // Color blocking theme matching user's reference image
@@ -44,7 +56,8 @@ export function ContentCard({
         subText: 'text-slate-400',
         pill: 'bg-[#232936] text-slate-300',
         btnBorder: 'border-slate-600 hover:border-white text-white',
-        badge: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+        aiBtn: 'bg-dark-bg text-card-lime hover:bg-dark-border border border-card-lime/30',
+        subBox: 'bg-[#090a0f] border-[#232936] text-slate-300'
       };
     }
 
@@ -57,7 +70,8 @@ export function ContentCard({
           subText: 'text-[#090a0f]/80',
           pill: 'bg-black text-[#bef264]',
           btnBorder: 'border-black hover:bg-black hover:text-[#bef264] text-[#090a0f]',
-          badge: 'bg-black text-white'
+          aiBtn: 'bg-black text-[#bef264] hover:bg-slate-900',
+          subBox: 'bg-white/80 border-black/10 text-dark-bg'
         };
       case 'phrasal_verb':
         return {
@@ -66,7 +80,8 @@ export function ContentCard({
           subText: 'text-[#090a0f]/80',
           pill: 'bg-black text-[#fbbf24]',
           btnBorder: 'border-black hover:bg-black hover:text-[#fbbf24] text-[#090a0f]',
-          badge: 'bg-black text-white'
+          aiBtn: 'bg-black text-[#fbbf24] hover:bg-slate-900',
+          subBox: 'bg-white/80 border-black/10 text-dark-bg'
         };
       case 'vocabulary':
       default:
@@ -77,7 +92,8 @@ export function ContentCard({
             subText: 'text-[#090a0f]/80',
             pill: 'bg-black text-[#f9a8d4]',
             btnBorder: 'border-black hover:bg-black hover:text-[#f9a8d4] text-[#090a0f]',
-            badge: 'bg-black text-white'
+            aiBtn: 'bg-black text-[#f9a8d4] hover:bg-slate-900',
+            subBox: 'bg-white/80 border-black/10 text-dark-bg'
           },
           {
             bg: 'bg-[#93c5fd] text-[#090a0f] border-[#60a5fa]',
@@ -85,7 +101,8 @@ export function ContentCard({
             subText: 'text-[#090a0f]/80',
             pill: 'bg-black text-[#93c5fd]',
             btnBorder: 'border-black hover:bg-black hover:text-[#93c5fd] text-[#090a0f]',
-            badge: 'bg-black text-white'
+            aiBtn: 'bg-black text-[#93c5fd] hover:bg-slate-900',
+            subBox: 'bg-white/80 border-black/10 text-dark-bg'
           },
           {
             bg: 'bg-white text-[#090a0f] border-slate-300',
@@ -93,7 +110,8 @@ export function ContentCard({
             subText: 'text-slate-700',
             pill: 'bg-[#090a0f] text-white',
             btnBorder: 'border-black hover:bg-black hover:text-white text-[#090a0f]',
-            badge: 'bg-[#090a0f] text-white'
+            aiBtn: 'bg-[#090a0f] text-white hover:bg-slate-800',
+            subBox: 'bg-slate-100 border-slate-200 text-dark-bg'
           }
         ];
         return vocabThemes[(index - 1) % vocabThemes.length];
@@ -102,6 +120,40 @@ export function ContentCard({
 
   const theme = getCardTheme(item.type);
   const formattedIndex = String(index).padStart(2, '0') + '.';
+
+  const handleToggleSentences = async () => {
+    if (showSentences) {
+      setShowSentences(false);
+      return;
+    }
+
+    setShowSentences(true);
+
+    if (sentences.length === 0) {
+      setIsLoadingSentences(true);
+      try {
+        const res = await generateSentencesWithGemini(
+          item.content,
+          item.type,
+          item.meaning_pt || ''
+        );
+        setSentences(res.sentences || []);
+        if (res.ipa) setIpa(res.ipa);
+        if (res.isOfflineFallback) setIsOffline(true);
+      } catch (err) {
+        console.error('Failed to generate sentences:', err);
+      } finally {
+        setIsLoadingSentences(false);
+      }
+    }
+  };
+
+  const handleCopySentence = (text: string, idx: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(text);
+    setCopiedIdx(idx);
+    setTimeout(() => setCopiedIdx(null), 2000);
+  };
 
   const getSourceLabel = (source: ContentSource) => {
     switch (source) {
@@ -158,9 +210,16 @@ export function ContentCard({
 
         {/* Big Word / Phrase / Phrasal Verb */}
         <div className="pt-1">
-          <h3 className={`text-2xl sm:text-3xl font-black tracking-tight leading-tight ${theme.textColor}`}>
-            {item.content}
-          </h3>
+          <div className="flex items-baseline justify-between gap-2 flex-wrap">
+            <h3 className={`text-2xl sm:text-3xl font-black tracking-tight leading-tight ${theme.textColor}`}>
+              {item.content}
+            </h3>
+            {ipa && (
+              <span className="text-xs font-mono opacity-70 font-bold">
+                {ipa}
+              </span>
+            )}
+          </div>
 
           {/* Portuguese Translation / Meaning */}
           {item.meaning_pt && (
@@ -176,6 +235,82 @@ export function ContentCard({
             </p>
           )}
         </div>
+
+        {/* AI Sentence Options Trigger */}
+        <div className="pt-2">
+          <button
+            onClick={handleToggleSentences}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-black tracking-tight transition-all active:scale-95 shadow-sm ${theme.aiBtn}`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            {showSentences ? 'Ocultar Opções de Frases' : '5 Opções de Frases (IA)'}
+            {showSentences ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+        </div>
+
+        {/* EXPANDABLE AI 5 SENTENCES ACCORDION */}
+        {showSentences && (
+          <div className="space-y-2 pt-2 animate-in fade-in duration-200">
+            {isLoadingSentences ? (
+              <div className={`p-4 rounded-2xl border text-xs font-mono flex items-center gap-2 ${theme.subBox}`}>
+                <Sparkles className="w-4 h-4 animate-spin text-card-lime" />
+                <span>Gerando 5 frases curtas no nível A2 com Gemini Flash...</span>
+              </div>
+            ) : sentences.length === 0 ? (
+              <div className={`p-3 rounded-2xl border text-xs ${theme.subBox}`}>
+                Nenhuma frase encontrada. Verifique sua conexão ou chave de API.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-mono font-bold opacity-75 px-1">
+                  <span>Escolha uma frase para seu card:</span>
+                  {isOffline && <span className="text-[10px] text-amber-600">(Modo Offline)</span>}
+                </div>
+
+                {sentences.map((st, idx) => (
+                  <div 
+                    key={idx} 
+                    className={`p-3 rounded-2xl border transition-all text-xs space-y-1 ${theme.subBox}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="font-bold text-sm leading-snug">
+                        {st.en}
+                      </div>
+
+                      <button
+                        onClick={(e) => handleCopySentence(st.en, idx, e)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg bg-black/10 hover:bg-black/20 text-[11px] font-bold flex-shrink-0 transition-colors"
+                        title="Copiar frase em inglês"
+                      >
+                        {copiedIdx === idx ? (
+                          <>
+                            <Check className="w-3 h-3 stroke-[3] text-emerald-600" />
+                            <span>Copiado!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3 opacity-60" />
+                            <span>Copiar</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    <p className="text-[11px] opacity-80 font-medium">
+                      {st.pt}
+                    </p>
+
+                    {st.clue && (
+                      <div className="text-[10px] font-mono opacity-60 pt-0.5">
+                        Frente do Anki: <span className="font-bold">{st.clue}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Bottom Actions Row */}
