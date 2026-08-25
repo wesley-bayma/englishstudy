@@ -16,7 +16,7 @@ export function middleware(req: NextRequest) {
   }
 
   const token = req.cookies.get('hub_session_token')?.value;
-  const correctPassword = process.env.APP_PASSWORD || 'english123';
+  const correctPassword = process.env.APP_PASSWORD || 'G@ngorra280494';
   const expectedToken = 'hub_auth_' + encodeURIComponent(correctPassword);
 
   const isAuthenticated = token && token === expectedToken;

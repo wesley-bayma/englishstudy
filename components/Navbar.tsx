@@ -20,11 +20,6 @@ export function Navbar() {
     return null;
   }
 
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    window.location.href = '/login';
-  };
-
   const navItems = [
     { label: 'Hoje', href: '/', icon: CalendarDays },
     { label: 'Adicionar', href: '/add', icon: PlusCircle, highlight: true },

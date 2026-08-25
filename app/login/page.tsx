@@ -9,10 +9,7 @@ import {
   ShieldCheck, 
   Eye, 
   EyeOff, 
-  Sparkles,
-  Layers,
-  BookOpen,
-  Zap
+  Sparkles 
 } from 'lucide-react';
 
 function LoginForm() {
@@ -52,7 +49,7 @@ function LoginForm() {
       router.push(redirectPath);
       router.refresh();
     } catch (err) {
-      setError('Erro ao conectar com o servidor local.');
+      setError('Erro ao conectar com o servidor.');
       setIsLoading(false);
     }
   };
@@ -109,11 +106,8 @@ function LoginForm() {
               <div className="flex items-center justify-between">
                 <label className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                   <KeyRound className="w-4 h-4 text-[#bef264]" />
-                  Senha Mestra
+                  Senha de Acesso
                 </label>
-                <span className="text-[10px] font-mono text-slate-500">
-                  Definida no seu .env.local
-                </span>
               </div>
 
               <div className="relative">
@@ -121,7 +115,7 @@ function LoginForm() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Digite sua senha de acesso..."
+                  placeholder="Digite sua senha..."
                   autoFocus
                   className="w-full pl-5 pr-12 py-4 bg-[#090a0f] rounded-2xl border-2 border-[#232936] text-white text-base font-mono placeholder:text-slate-600 focus:outline-none focus:border-[#bef264] transition-all shadow-inner"
                 />
