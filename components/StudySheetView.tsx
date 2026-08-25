@@ -258,6 +258,108 @@ export function StudySheetView({ sheet, number }: StudySheetViewProps) {
         </div>
       )}
 
+      {/* Canonical Anki Card Model */}
+      <div className="pt-2 border-t border-[#232936] space-y-3">
+        <span className="text-xs font-mono font-bold text-card-lime uppercase tracking-wider flex items-center gap-1.5">
+          <Sparkles className="w-4 h-4 text-card-lime" />
+          Modelo de Card Canônico para Anki (Tipo Basic):
+        </span>
+
+        {(() => {
+          const isPv = sheet.grammatical_class.toLowerCase().includes('phrasal');
+          const isPhrase = sheet.grammatical_class.toLowerCase().includes('frase') || sheet.term.includes(' ');
+          const firstEx = sheet.examples[0] || { en: sheet.term, pt: sheet.translation };
+
+          let cardFront = '';
+          let cardBack = '';
+
+          if (isPv) {
+            const pvMeaning = sheet.translation.split(';')[0].split(',')[0].trim();
+            cardFront = firstEx.en.replace(new RegExp(`\\b${sheet.term}\\b`, 'i'), `(PV: ${pvMeaning})`);
+            if (!cardFront.includes('(PV:')) {
+              cardFront = `I need to (PV: ${pvMeaning}) this.`;
+            }
+            cardBack = `${sheet.term} ${sheet.ipa}\n${firstEx.en}\n🔊 Áudio no verso.`;
+          } else if (isPhrase) {
+            const words = firstEx.en.split(' ');
+            const gapSentence = words.length > 3 
+              ? words.slice(0, -2).join(' ') + ` (..?)?` 
+              : `${firstEx.en} (..?)`;
+            cardFront = `${gapSentence}\n${sheet.translation}`;
+            cardBack = `${firstEx.en}\n🔊 Áudio da frase completa no verso.`;
+          } else {
+            const vocabMeaning = sheet.translation.split(',')[0].split('/')[0].trim();
+            cardFront = firstEx.en.replace(new RegExp(`\\b${sheet.term}\\b`, 'i'), `(${vocabMeaning})`);
+            if (!cardFront.includes('(')) {
+              cardFront = `I need (${vocabMeaning}) today.`;
+            }
+            cardBack = `${sheet.term} ${sheet.ipa}\n${firstEx.en}\n🔊 Áudio no verso.`;
+          }
+
+          return (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Frente */}
+              <div className="p-4 bg-dark-bg rounded-2xl border border-[#232936] space-y-2 flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-mono font-bold text-card-pink uppercase tracking-wider block mb-1">
+                    FRENTE DO CARD:
+                  </span>
+                  <p className="text-sm font-bold text-white whitespace-pre-line leading-snug">
+                    {cardFront}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => copyText(cardFront, 'card_front')}
+                  className="mt-3 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-card-pink/10 hover:bg-card-pink/20 text-card-pink text-xs font-mono font-bold transition-colors w-full"
+                >
+                  {copiedSection === 'card_front' ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      Frente Copiada!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      Copiar Frente
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Verso */}
+              <div className="p-4 bg-dark-bg rounded-2xl border border-[#232936] space-y-2 flex flex-col justify-between">
+                <div>
+                  <span className="text-[10px] font-mono font-bold text-card-lime uppercase tracking-wider block mb-1">
+                    VERSO DO CARD (COM ÁUDIO):
+                  </span>
+                  <p className="text-sm font-medium text-slate-200 whitespace-pre-line leading-snug">
+                    {cardBack}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => copyText(cardBack, 'card_back')}
+                  className="mt-3 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-card-lime/10 hover:bg-card-lime/20 text-card-lime text-xs font-mono font-bold transition-colors w-full"
+                >
+                  {copiedSection === 'card_back' ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      Verso Copiado!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      Copiar Verso
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
       {/* Tip / Warning Callout */}
       {sheet.tip_warning && (
         <div className="p-4 rounded-2xl bg-card-amber/10 border border-card-amber/30 text-xs text-card-amber leading-relaxed font-medium space-y-1">
@@ -267,3 +369,4 @@ export function StudySheetView({ sheet, number }: StudySheetViewProps) {
     </div>
   );
 }
+
