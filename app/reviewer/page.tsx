@@ -43,13 +43,13 @@ export default function ReviewerPage() {
     setType(exType);
     if (exType === 'vocabulary') {
       setFront('I forgot my (carteira) again.');
-      setBack('wallet /ˈwɑː.lət/\nI forgot my wallet again.\n🔊 Áudio no verso.');
+      setBack('wallet /ˈwɑː.lət/\nI forgot my wallet again.');
     } else if (exType === 'survival_phrase') {
       setFront('Could you speak (..?)?\nVocê poderia falar mais devagar?');
-      setBack('Could you speak more slowly?\n🔊 Áudio no verso.');
+      setBack('Could you speak more slowly?');
     } else {
       setFront('I need to (PV: descobrir) the truth.');
-      setBack('find out — finding out — found out\nI need to find out the truth.\n🔊 Áudio no verso.');
+      setBack('find out — finding out — found out\nI need to find out the truth.');
     }
     setResult(null);
   };

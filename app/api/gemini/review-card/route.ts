@@ -17,9 +17,6 @@ export async function POST(req: NextRequest) {
       const wordCount = front.trim().split(/\s+/).length;
       if (wordCount > 10) obs.push('Frase na frente um pouco longa. Prefira frases curtas de 5–7 palavras.');
       if (!front.includes('(') && !front.includes('..')) obs.push('Recomendado incluir uma lacuna ou dica entre parênteses para recuperação ativa.');
-      if (!back.toLowerCase().includes('áudio') && !back.toLowerCase().includes('audio') && !back.includes('🔊')) {
-        obs.push('Lembre-se de manter a indicação do áudio no VERSO do card.');
-      }
 
       return NextResponse.json({
         status: obs.length === 0 ? 'good' : (obs.length === 1 ? 'improvable' : 'bad'),

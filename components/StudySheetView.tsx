@@ -279,21 +279,21 @@ export function StudySheetView({ sheet, number }: StudySheetViewProps) {
             if (!cardFront.includes('(PV:')) {
               cardFront = `I need to (PV: ${pvMeaning}) this.`;
             }
-            cardBack = `${sheet.term} ${sheet.ipa}\n${firstEx.en}\n🔊 Áudio no verso.`;
+            cardBack = `${sheet.term} ${sheet.ipa}\n${firstEx.en}`;
           } else if (isPhrase) {
             const words = firstEx.en.split(' ');
             const gapSentence = words.length > 3 
               ? words.slice(0, -2).join(' ') + ` (..?)?` 
               : `${firstEx.en} (..?)`;
             cardFront = `${gapSentence}\n${sheet.translation}`;
-            cardBack = `${firstEx.en}\n🔊 Áudio da frase completa no verso.`;
+            cardBack = `${firstEx.en}`;
           } else {
             const vocabMeaning = sheet.translation.split(',')[0].split('/')[0].trim();
             cardFront = firstEx.en.replace(new RegExp(`\\b${sheet.term}\\b`, 'i'), `(${vocabMeaning})`);
             if (!cardFront.includes('(')) {
               cardFront = `I need (${vocabMeaning}) today.`;
             }
-            cardBack = `${sheet.term} ${sheet.ipa}\n${firstEx.en}\n🔊 Áudio no verso.`;
+            cardBack = `${sheet.term} ${sheet.ipa}\n${firstEx.en}`;
           }
 
           return (
@@ -331,7 +331,7 @@ export function StudySheetView({ sheet, number }: StudySheetViewProps) {
               <div className="p-4 bg-dark-bg rounded-2xl border border-[#232936] space-y-2 flex flex-col justify-between">
                 <div>
                   <span className="text-[10px] font-mono font-bold text-card-lime uppercase tracking-wider block mb-1">
-                    VERSO DO CARD (COM ÁUDIO):
+                    VERSO DO CARD:
                   </span>
                   <p className="text-sm font-medium text-slate-200 whitespace-pre-line leading-snug">
                     {cardBack}
