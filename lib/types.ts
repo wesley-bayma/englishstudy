@@ -102,18 +102,39 @@ export interface ExampleSentenceItem {
   pt: string;
 }
 
+export interface PhraseVariation {
+  en: string;
+  pt: string;
+}
+
+export interface StrategicGapInfo {
+  gap_sentence: string;
+  expected_chunk: string;
+  explanation?: string;
+}
+
 export interface StudySheet {
   term: string;
+  type?: ContentType;
   ipa: string;
   grammatical_class: string;
   translation: string;
   connotation_usage?: string;
   useful_structures?: string[];
-  collocations: CollocationItem[];
-  examples: ExampleSentenceItem[];
-  related_words: string[];
+  
+  // For Vocabulary & Phrasal Verbs
+  collocations?: CollocationItem[];
+  examples?: ExampleSentenceItem[];
+  related_words?: string[];
+
+  // For Survival Phrases
+  pattern?: string;
+  variations?: PhraseVariation[];
+  strategic_gap?: StrategicGapInfo;
+
   tip_warning: string;
 }
+
 
 export interface VerificationResult {
   exact_match: ContentItem | null;

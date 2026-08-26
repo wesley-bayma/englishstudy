@@ -391,6 +391,8 @@ export default function TodayPage() {
           setSelectedItem(it);
           setIsEncounterOpen(true);
         }}
+        queueItems={filteredItems}
+        onSelectNextItem={(next) => setSelectedItem(next)}
       />
 
       {/* Encounter Modal */}
