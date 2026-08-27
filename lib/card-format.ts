@@ -44,9 +44,10 @@ function isPhrasalVerb(sheet: StudySheet): boolean {
     (sheet.grammatical_class || '').toLowerCase().includes('phrasal');
 }
 
-function appendIpa(sentence: string, ipa: string): string {
+function appendCardTranslation(sentence: string, translation: string, ipa: string): string {
+  const cleanTranslation = (translation || '').trim();
   const cleanIpa = (ipa || '').trim();
-  return cleanIpa ? `${sentence}\n${cleanIpa}` : sentence;
+  return [sentence.trim(), cleanTranslation, cleanIpa].filter(Boolean).join('\n');
 }
 
 /**
@@ -62,15 +63,16 @@ export function buildCanonicalCard(sheet: StudySheet): CanonicalCard | null {
     const gapCount = gap.gap_sentence.match(GAP_PATTERN)?.length || 0;
     if (gapCount !== 1) return null;
 
+    const translation = sheet.translation.trim();
     return {
-      front: `${gap.gap_sentence.trim()}\n${sheet.translation.trim()}`.trim(),
-      back: appendIpa(sheet.term.trim(), sheet.ipa)
+      front: `${gap.gap_sentence.trim()}\n${translation}`.trim(),
+      back: appendCardTranslation(sheet.term.trim(), translation, sheet.ipa)
     };
   }
 
   const example = sheet.examples?.find(item => replaceTerm(item.en, sheet.term, sheet.term));
   const meaning = primaryMeaning(sheet.translation);
-  if (!example || !meaning) return null;
+  if (!example || !meaning || !example.pt?.trim()) return null;
 
   const frontTarget = isPhrasalVerb(sheet)
     ? `(PV: ${meaning})`
@@ -82,7 +84,7 @@ export function buildCanonicalCard(sheet: StudySheet): CanonicalCard | null {
 
   return {
     front: frontSentence,
-    back: appendIpa(backSentence, sheet.ipa)
+    back: appendCardTranslation(backSentence, example.pt, sheet.ipa)
   };
 }
 
@@ -105,10 +107,12 @@ export function validateCanonicalCard(
     if (gapCount !== 1) issues.push('A frase de sobrevivência deve ter uma única lacuna significativa.');
     if (!front.includes('\n')) issues.push('Inclua a tradução completa abaixo da frase na frente.');
     if (!back.trim()) issues.push('O verso precisa conter a frase completa em inglês.');
+    if (back.split(/\r?\n/).filter(line => line.trim()).length < 3) issues.push('Inclua a tradução em português e o IPA no verso.');
     if (!back.match(/\/[^/\n]+\//)) issues.push('Inclua o IPA no verso.');
   } else {
     if (!front.match(/\([^()]+\)/)) issues.push('A frente precisa conter uma única pista entre parênteses.');
     if (!back.match(/\([^()]+\)/)) issues.push('O verso precisa conter o termo em inglês entre parênteses.');
+    if (back.split(/\r?\n/).filter(line => line.trim()).length < 3) issues.push('Inclua a tradução da frase e o IPA no verso.');
     if (!back.match(/\/[^/\n]+\//)) issues.push('Inclua o IPA no verso.');
     if (isPv && !front.includes('PV:')) issues.push('A frente do phrasal verb deve indicar o sentido com “PV:”.');
 

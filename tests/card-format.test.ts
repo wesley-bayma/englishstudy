@@ -16,10 +16,10 @@ function sheet(overrides: Partial<StudySheet>): StudySheet {
 }
 
 describe('canonical Anki card format', () => {
-  it('mirrors a vocabulary target and includes only IPA on the back', () => {
+  it('mirrors a vocabulary target and includes the sentence translation and IPA on the back', () => {
     expect(buildCanonicalCard(sheet({}))).toEqual({
       front: 'I like (maçã).',
-      back: 'I like (apple).\n/ˈæpəl/'
+      back: 'I like (apple).\nEu gosto de maçã.\n/ˈæpəl/'
     });
   });
 
@@ -31,7 +31,7 @@ describe('canonical Anki card format', () => {
       ]
     }))).toEqual({
       front: 'She bought an (maçã).',
-      back: 'She bought an (apple).\n/ˈæpəl/'
+      back: 'She bought an (apple).\nEla comprou uma maçã.\n/ˈæpəl/'
     });
   });
 
@@ -55,7 +55,7 @@ describe('canonical Anki card format', () => {
       examples: []
     }))).toEqual({
       front: 'Could you speak (_____) ?\nVocê poderia falar mais devagar?',
-      back: 'Could you speak more slowly?\n/kʊd juː spiːk mɔːr ˈsloʊ.li/'
+      back: 'Could you speak more slowly?\nVocê poderia falar mais devagar?\n/kʊd juː spiːk mɔːr ˈsloʊ.li/'
     });
   });
 
@@ -69,20 +69,20 @@ describe('canonical Anki card format', () => {
       examples: [{ en: 'I need to find out the truth.', pt: 'Preciso descobrir a verdade.' }]
     }))).toEqual({
       front: 'I need to (PV: descobrir) the truth.',
-      back: 'I need to (find out) the truth.\n/faɪnd aʊt/'
+      back: 'I need to (find out) the truth.\nPreciso descobrir a verdade.\n/faɪnd aʊt/'
     });
   });
 
   it('rejects the old audio label and validates the three card types', () => {
     expect(validateCanonicalCard(
       'I like (maçã).',
-      'I like (apple).\n/ˈæpəl/\nÁudio no verso.',
+      'I like (apple).\nEu gosto de maçã.\n/ˈæpəl/\nÁudio no verso.',
       'vocabulary'
     )).toContain('Remova o texto de áudio do card; deixe apenas o IPA.');
 
     expect(validateCanonicalCard(
       'Could you speak (_____) ?\nVocê poderia falar mais devagar?',
-      'Could you speak more slowly?\n/kʊd juː spiːk mɔːr ˈsloʊ.li/',
+      'Could you speak more slowly?\nVocê poderia falar mais devagar?\n/kʊd juː spiːk mɔːr ˈsloʊ.li/',
       'survival_phrase'
     )).toEqual([]);
   });

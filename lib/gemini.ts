@@ -107,7 +107,8 @@ export async function getStudySheetWithGemini(
   term: string,
   type: ContentType = 'vocabulary',
   meaningPt: string = '',
-  contextSentence: string = ''
+  contextSentence: string = '',
+  signal?: AbortSignal
 ): Promise<StudySheet | null> {
   const apiKey = getStoredApiKey();
 
@@ -121,7 +122,8 @@ export async function getStudySheetWithGemini(
         meaningPt,
         contextSentence,
         apiKey
-      })
+      }),
+      signal
     });
 
     if (!res.ok) {

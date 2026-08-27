@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ContentItem, Encounter, StudySheet } from '../lib/types';
 import { getItemEncounters } from '../lib/db';
 import { getStudySheetWithGemini } from '../lib/gemini';
@@ -46,24 +46,46 @@ export function ItemDetailModal({
   const [isLoadingSheet, setIsLoadingSheet] = useState(false);
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [autoAdvanceFeedback, setAutoAdvanceFeedback] = useState<string | null>(null);
+  const autoAdvanceTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (item && isOpen) {
-      getItemEncounters(item.id).then(setEncounters);
-      setIsLoadingSheet(true);
-      setSheet(null);
-      setSheetError(null);
-      getStudySheetWithGemini(item.content, item.type, item.meaning_pt || '', item.example || '')
-        .then(res => {
-          setSheet(res);
-          if (!res) {
-            setSheetError('Não foi possível gerar uma ficha natural. Configure a API do Gemini ou adicione um contexto válido para este item.');
-          }
-        })
-        .catch(err => console.error('Failed to load study sheet:', err))
-        .finally(() => setIsLoadingSheet(false));
-    }
-  }, [item, isOpen]);
+    if (!item || !isOpen) return;
+
+    let isActive = true;
+    const controller = new AbortController();
+
+    getItemEncounters(item.id).then(result => {
+      if (isActive) setEncounters(result);
+    });
+    setIsLoadingSheet(true);
+    setSheet(null);
+    setSheetError(null);
+    getStudySheetWithGemini(item.content, item.type, item.meaning_pt || '', item.example || '', controller.signal)
+      .then(res => {
+        if (!isActive) return;
+        setSheet(res);
+        if (!res) {
+          setSheetError('Não foi possível gerar a ficha deste item. Verifique a API do Gemini ou tente novamente.');
+        }
+      })
+      .catch(err => {
+        if (!isActive || err?.name === 'AbortError') return;
+        console.error('Failed to load study sheet:', err);
+        setSheetError('Não foi possível carregar a ficha deste item. Tente novamente.');
+      })
+      .finally(() => {
+        if (isActive) setIsLoadingSheet(false);
+      });
+
+    return () => {
+      isActive = false;
+      controller.abort();
+      if (autoAdvanceTimerRef.current !== null) {
+        window.clearTimeout(autoAdvanceTimerRef.current);
+        autoAdvanceTimerRef.current = null;
+      }
+    };
+  }, [isOpen, item?.id, item?.content, item?.type, item?.meaning_pt, item?.example]);
 
   if (!isOpen || !item) return null;
 
@@ -98,13 +120,17 @@ export function ItemDetailModal({
 
         if (nextItem) {
           setAutoAdvanceFeedback(`Salvo no Anki! Avançando para "${nextItem.content}"...`);
-          setTimeout(() => {
+          autoAdvanceTimerRef.current = window.setTimeout(() => {
+            autoAdvanceTimerRef.current = null;
             setAutoAdvanceFeedback(null);
             onSelectNextItem(nextItem);
           }, 600);
         } else {
           setAutoAdvanceFeedback(`🎉 Parabéns! Todos os cards da fila foram criados!`);
-          setTimeout(() => setAutoAdvanceFeedback(null), 2500);
+          autoAdvanceTimerRef.current = window.setTimeout(() => {
+            autoAdvanceTimerRef.current = null;
+            setAutoAdvanceFeedback(null);
+          }, 2500);
         }
       }
     } catch (err) {
