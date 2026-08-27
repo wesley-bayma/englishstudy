@@ -35,6 +35,8 @@ export class EnglishHubDB extends Dexie {
 
 const LEGACY_DATABASE_NAME = 'EnglishStudyHubDB';
 const LEGACY_MIGRATION_FLAG = 'english_hub_legacy_db_migrated_v1';
+const CANONICAL_DATASET_VERSION = 'v3-10000';
+const CANONICAL_DATASET_VERSION_KEY = 'english_hub_dataset_version';
 
 /**
  * The database name was bumped to v2 in a previous release. Keep the old
@@ -159,7 +161,41 @@ async function migrateLegacyDatabase(targetDb: EnglishHubDB): Promise<void> {
   }
 }
 
+/**
+ * The canonical dataset changes the meaning of the daily sequence. Clear only
+ * generated daily queues and cached sheets once, preserving content, Inbox
+ * records, encounters, and Anki statuses.
+ */
+async function resetHistoryForDatasetVersion(targetDb: EnglishHubDB): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  try {
+    if (window.localStorage.getItem(CANONICAL_DATASET_VERSION_KEY) === CANONICAL_DATASET_VERSION) {
+      return;
+    }
+  } catch {
+    // Private browsing/test environments may not expose localStorage. Avoid
+    // repeating a destructive reset when its completion cannot be recorded.
+    return;
+  }
+
+  await targetDb.transaction('rw', targetDb.daily_queues, targetDb.study_sheets, async () => {
+    await targetDb.daily_queues.clear();
+    await targetDb.study_sheets.clear();
+  });
+
+  try {
+    window.localStorage.setItem(CANONICAL_DATASET_VERSION_KEY, CANONICAL_DATASET_VERSION);
+  } catch {
+    // The reset already happened; leave the app usable if persistence is blocked.
+  }
+
+  console.info('Daily history reset for canonical 10,000-word dataset.');
+}
+
 let dbInstance: EnglishHubDB | null = null;
+let datasetSynchronized = false;
+let initializationPromise: Promise<number> | null = null;
 
 export function getDB(): EnglishHubDB {
   if (typeof window === 'undefined') {
@@ -173,44 +209,79 @@ export function getDB(): EnglishHubDB {
 }
 
 /**
- * Initializes the database. Auto-seeds the clean canonical 3,250 items.
+ * Performs the database initialization and canonical dataset synchronization.
  */
-export async function initDatabase(): Promise<number> {
+async function initializeDatabase(): Promise<number> {
   if (typeof window === 'undefined') return 0;
   const db = getDB();
   
   try {
     const count = await db.content_items.count();
+    const formattedSeeds: ContentItem[] = (seedData as any[]).map(item => ({
+      ...item,
+      normalized_content: item.normalized_content || normalizeContent(item.content),
+      times_encountered: item.times_encountered || 0,
+      anki_status: (item.anki_status as AnkiStatus) || 'not_created',
+      date_added: item.date_added || new Date().toISOString()
+    }));
 
     let initializedCount = count;
 
     if (count === 0) {
-      console.log('Seeding canonical dataset v2 (3,250 items)...');
-
-      const formattedSeeds: ContentItem[] = (seedData as any[]).map(item => ({
-        ...item,
-        normalized_content: item.normalized_content || normalizeContent(item.content),
-        times_encountered: item.times_encountered || 0,
-        anki_status: (item.anki_status as AnkiStatus) || 'not_created',
-        date_added: item.date_added || new Date().toISOString()
-      }));
+      console.log('Seeding canonical dataset v3 (10,311 items)...');
 
       // Chunked insert for efficiency
-      const chunkSize = 500;
+      const chunkSize = 5000;
       for (let i = 0; i < formattedSeeds.length; i += chunkSize) {
         const chunk = formattedSeeds.slice(i, i + chunkSize);
         await db.content_items.bulkPut(chunk);
       }
-      console.log('Seeding complete! 3,250 clean canonical items ready.');
+      console.log('Seeding complete! 10,000 vocabulary words plus phrases and phrasal verbs ready.');
       initializedCount = formattedSeeds.length;
+    } else {
+      const existingBaseItems = await db.content_items.where('source').equals('base').toArray();
+      const existingBaseIds = new Set(existingBaseItems.map(item => item.id));
+      const missingSeeds = formattedSeeds.filter(
+        seed => seed.source === 'base' && !existingBaseIds.has(seed.id)
+      );
+
+      const chunkSize = 5000;
+      for (let i = 0; i < missingSeeds.length; i += chunkSize) {
+        const chunk = missingSeeds.slice(i, i + chunkSize);
+        await db.content_items.bulkPut(chunk);
+      }
+      initializedCount = count + missingSeeds.length;
     }
 
     await migrateLegacyDatabase(db);
+    await resetHistoryForDatasetVersion(db);
     return initializedCount;
   } catch (error) {
     console.error('Error initializing database:', error);
     return 0;
   }
+}
+
+/**
+ * Initializes once per browser session and deduplicates concurrent callers.
+ * Queue navigation can call this from several components without rescanning
+ * all 10,311 records on every interaction.
+ */
+export function initDatabase(): Promise<number> {
+  if (typeof window === 'undefined') return Promise.resolve(0);
+  if (datasetSynchronized) return getDB().content_items.count();
+  if (initializationPromise) return initializationPromise;
+
+  initializationPromise = initializeDatabase()
+    .then(initializedCount => {
+      if (initializedCount > 0) datasetSynchronized = true;
+      return initializedCount;
+    })
+    .finally(() => {
+      initializationPromise = null;
+    });
+
+  return initializationPromise;
 }
 
 /**
@@ -220,6 +291,8 @@ export async function hardResetDatabase(): Promise<void> {
   const db = getDB();
   await db.delete();
   dbInstance = new EnglishHubDB();
+  datasetSynchronized = false;
+  initializationPromise = null;
   await initDatabase();
 }
 

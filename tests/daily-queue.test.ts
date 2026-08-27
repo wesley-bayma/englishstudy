@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getDB,
   hardResetDatabase,
@@ -43,10 +43,30 @@ function queueFor(date: string, contentIds: string[], status: 'pending' | 'creat
 }
 
 describe('daily queue scheduling', () => {
+  beforeAll(async () => {
+    await hardResetDatabase();
+  }, 30000);
+
   beforeEach(async () => {
     vi.useRealTimers();
-    await hardResetDatabase();
-    await getDB().daily_queues.clear();
+    const db = getDB();
+    const allItems = await db.content_items.toArray();
+    const inboxIds = allItems.filter(item => item.source !== 'base').map(item => item.id);
+
+    await db.daily_queues.clear();
+    await db.study_sheets.clear();
+    await db.encounters.clear();
+    if (inboxIds.length > 0) await db.content_items.bulkDelete(inboxIds);
+    const createdBaseItems = allItems
+      .filter(item => item.source === 'base' && item.anki_status === 'created')
+      .map(item => ({
+        ...item,
+        anki_status: 'not_created' as const,
+        anki_created_at: null,
+        times_encountered: 0,
+        last_encountered: null
+      }));
+    if (createdBaseItems.length > 0) await db.content_items.bulkPut(createdBaseItems);
   });
 
   afterAll(async () => {
