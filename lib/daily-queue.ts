@@ -20,6 +20,30 @@ export function getFormattedDate(dateStr?: string): string {
 }
 
 /**
+ * Returns content IDs that were already delivered by an earlier daily queue.
+ * Skipped entries remain eligible for a future queue; all other entries are
+ * reserved for the day on which they were first delivered.
+ */
+async function getPreviouslyScheduledItemIds(todayStr: string): Promise<Set<string>> {
+  const db = getDB();
+  const previousQueues = await db.daily_queues
+    .where('date')
+    .below(todayStr)
+    .toArray();
+
+  const scheduledIds = new Set<string>();
+  for (const previousQueue of previousQueues) {
+    for (const queueItem of previousQueue.items || []) {
+      if (queueItem.status !== 'skipped') {
+        scheduledIds.add(queueItem.content_id);
+      }
+    }
+  }
+
+  return scheduledIds;
+}
+
+/**
  * Selects candidate items for a specific content type in STRICT sequential order (NEVER RANDOM)
  */
 async function selectItemsForCategory(
@@ -104,6 +128,14 @@ export async function getOrCreateTodayQueue(
     return await regenerateTodayQueue(totalTarget);
   }
 
+  // A queue created by an older version may contain items already delivered
+  // on a previous day. Repair it before showing it to the user.
+  const previouslyScheduledIds = await getPreviouslyScheduledItemIds(todayStr);
+  const hasHistoricalItems = queue.items.some(item => previouslyScheduledIds.has(item.content_id));
+  if (hasHistoricalItems) {
+    return await regenerateTodayQueue(totalTarget);
+  }
+
   // Hydrate full content items
   const itemIds = queue.items.map(qi => qi.content_id);
   const hydratedItems = await db.content_items.where('id').anyOf(itemIds).toArray();
@@ -135,7 +167,9 @@ export async function regenerateTodayQueue(
 
   await initDatabase();
 
-  const excludeIds = new Set<string>();
+  // Once an item has been delivered, it belongs to that day's agenda even if
+  // the user has not yet marked it as created in Anki.
+  const excludeIds = await getPreviouslyScheduledItemIds(todayStr);
 
   // 1. Select up to 3 Survival Phrases
   const phraseItems = await selectItemsForCategory('survival_phrase', 3, excludeIds);
@@ -186,7 +220,8 @@ export async function skipQueueItem(
     queue = res.queue;
   }
 
-  const existingIds = new Set(queue.items.map(qi => qi.content_id));
+  const existingIds = await getPreviouslyScheduledItemIds(todayStr);
+  queue.items.forEach(qi => existingIds.add(qi.content_id));
 
   // Find the NEXT sequential item in the list of the same type (or vocab if other category exhausted)
   let replacements = await selectItemsForCategory(type, 1, existingIds);

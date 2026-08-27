@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ContentItem, DailyQueue, ContentType } from '../lib/types';
 import { 
   getOrCreateTodayQueue, 
   markQueueItemCreated, 
   skipQueueItem,
-  regenerateTodayQueue,
   getFormattedDate,
   getTodayDateString 
 } from '../lib/daily-queue';
@@ -34,43 +33,83 @@ export default function TodayPage() {
   const [loading, setLoading] = useState(true);
   const [activeTypeFilter, setActiveTypeFilter] = useState<'all' | ContentType>('all');
   const [isAuditing, setIsAuditing] = useState(false);
-  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [todayIso, setTodayIso] = useState(() => getTodayDateString());
+  const loadRequestRef = useRef(0);
   
   // Modals state
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isEncounterOpen, setIsEncounterOpen] = useState(false);
 
-  const todayIso = getTodayDateString();
   const formattedToday = getFormattedDate(todayIso);
 
-  const loadQueue = async () => {
+  const loadQueue = useCallback(async () => {
+    const requestId = ++loadRequestRef.current;
     setLoading(true);
     try {
       const res = await getOrCreateTodayQueue();
+
+      // Do not let a slower request from the previous date overwrite a newer
+      // queue after midnight or when the tab returns from the background.
+      if (requestId !== loadRequestRef.current) return;
+
       setQueue(res.queue);
       setItems(res.items);
     } catch (err) {
+      if (requestId !== loadRequestRef.current) return;
       console.error('Failed to load today queue:', err);
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestRef.current) {
+        setLoading(false);
+      }
     }
-  };
-
-  useEffect(() => {
-    loadQueue();
   }, []);
 
-  const handleRegenerate = async () => {
-    setIsRegenerating(true);
+  useEffect(() => {
+    void loadQueue();
+  }, [loadQueue]);
+
+  useEffect(() => {
+    const checkForDateChange = () => {
+      const nextDate = getTodayDateString();
+      if (nextDate === todayIso) return;
+
+      setTodayIso(nextDate);
+      void loadQueue();
+    };
+
+    const now = new Date();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 0);
+    const delayUntilMidnight = Math.max(
+      1000,
+      nextMidnight.getTime() - now.getTime() + 100
+    );
+    const rolloverTimer = window.setTimeout(checkForDateChange, delayUntilMidnight);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkForDateChange();
+      }
+    };
+
+    window.addEventListener('focus', checkForDateChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.clearTimeout(rolloverTimer);
+      window.removeEventListener('focus', checkForDateChange);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [todayIso, loadQueue]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
     try {
-      const res = await regenerateTodayQueue();
-      setQueue(res.queue);
-      setItems(res.items);
-    } catch (err) {
-      console.error('Failed to regenerate queue:', err);
+      await loadQueue();
     } finally {
-      setIsRegenerating(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -158,13 +197,13 @@ export default function TodayPage() {
           </button>
 
           <button
-            onClick={handleRegenerate}
-            disabled={isRegenerating}
+            onClick={handleRefresh}
+            disabled={isRefreshing}
             className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-dark-bg hover:bg-dark-border text-slate-300 text-xs font-mono font-bold border border-dark-border transition-colors"
             title="Recarregar sequência de hoje"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isRegenerating ? 'animate-spin text-card-lime' : 'text-slate-400'}`} />
-            {isRegenerating ? 'Atualizando...' : 'Recarregar'}
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-card-lime' : 'text-slate-400'}`} />
+            {isRefreshing ? 'Atualizando...' : 'Atualizar'}
           </button>
         </div>
       </div>
@@ -352,7 +391,7 @@ export default function TodayPage() {
             Nenhum item pendente nesta categoria.
           </p>
           <button
-            onClick={handleRegenerate}
+            onClick={handleRefresh}
             className="px-6 py-3 bg-card-lime text-dark-bg rounded-full text-xs font-black shadow-lg"
           >
             Recarregar Fila
