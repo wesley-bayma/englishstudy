@@ -119,6 +119,18 @@ describe('daily queue scheduling', () => {
     expect(result.items.map(item => item.id)).toEqual(['base_vocab_250']);
   });
 
+  it('respects a custom daily target without exceeding it', async () => {
+    const oneCard = await regenerateTodayQueue(1);
+    expect(oneCard.queue.target_count).toBe(1);
+    expect(oneCard.items).toHaveLength(1);
+
+    const twelveCards = await regenerateTodayQueue(12);
+    expect(twelveCards.queue.target_count).toBe(12);
+    expect(twelveCards.items).toHaveLength(12);
+    expect(twelveCards.items.filter(item => item.type === 'survival_phrase')).toHaveLength(3);
+    expect(twelveCards.items.filter(item => item.type === 'phrasal_verb')).toHaveLength(2);
+  });
+
   it('loads a saved historical queue without creating a missing queue', async () => {
     const today = getTodayDateString();
     const yesterday = shiftDate(today, -1);

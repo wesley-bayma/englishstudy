@@ -4,6 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { getStudyHubStats } from '../../lib/db';
 import { exportToJSON, exportToCSV, validateImportData, commitImport, ImportValidationReport } from '../../lib/export-import';
 import { getStoredApiKey, setStoredApiKey } from '../../lib/gemini';
+import {
+  getDailyCardGoal,
+  setDailyCardGoal,
+  MIN_DAILY_CARD_GOAL,
+  MAX_DAILY_CARD_GOAL
+} from '../../lib/daily-queue';
 import { 
   BarChart3, 
   Download, 
@@ -27,6 +33,8 @@ export default function ProgressPage() {
   // Settings
   const [apiKey, setApiKey] = useState('');
   const [isApiKeySaved, setIsApiKeySaved] = useState(false);
+  const [dailyCardGoal, setDailyCardGoalInput] = useState(String(getDailyCardGoal()));
+  const [isDailyGoalSaved, setIsDailyGoalSaved] = useState(false);
 
   // Import
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -37,6 +45,7 @@ export default function ProgressPage() {
   useEffect(() => {
     loadStats();
     setApiKey(getStoredApiKey());
+    setDailyCardGoalInput(String(getDailyCardGoal()));
   }, []);
 
   const loadStats = async () => {
@@ -56,6 +65,14 @@ export default function ProgressPage() {
     setStoredApiKey(apiKey);
     setIsApiKeySaved(true);
     setTimeout(() => setIsApiKeySaved(false), 2500);
+  };
+
+  const handleSaveDailyGoal = (e: React.FormEvent) => {
+    e.preventDefault();
+    const savedGoal = setDailyCardGoal(Number(dailyCardGoal));
+    setDailyCardGoalInput(String(savedGoal));
+    setIsDailyGoalSaved(true);
+    setTimeout(() => setIsDailyGoalSaved(false), 2500);
   };
 
   const handleExportJSON = async () => {
@@ -317,7 +334,57 @@ export default function ProgressPage() {
         </div>
       </div>
 
-      {/* 5. CONFIGURAÇÕES GEMINI FLASH */}
+      {/* 5. CONFIGURAÇÃO DA META DIÁRIA */}
+      <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-4">
+        <h2 className="text-xl font-black text-white flex items-center gap-2.5">
+          <Settings className="w-5 h-5 text-card-lime" />
+          Meta diária de cards
+        </h2>
+        <p className="text-xs text-slate-400">
+          Escolha quantos conteúdos novos quer receber na fila de cada dia.
+          A fila de hoje já criada não troca de itens; a nova meta vale para a próxima fila.
+        </p>
+
+        <form onSubmit={handleSaveDailyGoal} className="space-y-3">
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              min={MIN_DAILY_CARD_GOAL}
+              max={MAX_DAILY_CARD_GOAL}
+              step="1"
+              value={dailyCardGoal}
+              onChange={(e) => setDailyCardGoalInput(e.target.value)}
+              className="w-32 px-4 py-3 rounded-2xl bg-dark-bg border border-dark-border text-white text-sm font-mono focus:outline-none focus:border-card-lime"
+              aria-label="Quantidade de cards por dia"
+            />
+            <span className="text-xs text-slate-400">cards por dia</span>
+          </div>
+
+          {Number(dailyCardGoal) > 20 && (
+            <p className="text-xs text-card-amber leading-relaxed">
+              ⚠️ Quantidades maiores aumentam bastante as revisões futuras no Anki.
+            </p>
+          )}
+
+          <div className="flex items-center justify-end pt-1">
+            <button
+              type="submit"
+              className="flex items-center gap-1.5 px-6 py-3 bg-card-lime hover:bg-card-limeDark text-dark-bg rounded-full text-xs font-black shadow-lg active:scale-95 transition-all"
+            >
+              {isDailyGoalSaved ? (
+                <>
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                  Salvo!
+                </>
+              ) : (
+                'Salvar Meta'
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* 6. CONFIGURAÇÕES GEMINI FLASH */}
       <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-4">
         <h2 className="text-xl font-black text-white flex items-center gap-2.5">
           <Key className="w-5 h-5 text-card-lime" />

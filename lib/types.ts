@@ -87,6 +87,7 @@ export interface CardReviewResult {
 
 export interface AppSettings {
   gemini_api_key: string;
+  daily_card_goal: number;
   daily_vocab_goal: number;
   daily_phrase_goal: number;
   daily_phrasal_goal: number;

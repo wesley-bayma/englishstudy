@@ -4,6 +4,38 @@ import { ContentItem, DailyQueue, DailyQueueItem, ContentType, AnkiStatus } from
 export type QueueResult = { queue: DailyQueue; items: ContentItem[] };
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+export const DEFAULT_DAILY_CARD_GOAL = 10;
+export const MIN_DAILY_CARD_GOAL = 1;
+export const MAX_DAILY_CARD_GOAL = 100;
+const DAILY_CARD_GOAL_STORAGE_KEY = 'english_hub_daily_card_goal';
+
+function normalizeDailyCardGoal(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_DAILY_CARD_GOAL;
+  return Math.min(MAX_DAILY_CARD_GOAL, Math.max(MIN_DAILY_CARD_GOAL, Math.round(value)));
+}
+
+export function getDailyCardGoal(): number {
+  if (typeof window === 'undefined') return DEFAULT_DAILY_CARD_GOAL;
+
+  try {
+    const stored = Number(window.localStorage.getItem(DAILY_CARD_GOAL_STORAGE_KEY));
+    return stored > 0 ? normalizeDailyCardGoal(stored) : DEFAULT_DAILY_CARD_GOAL;
+  } catch {
+    return DEFAULT_DAILY_CARD_GOAL;
+  }
+}
+
+export function setDailyCardGoal(value: number): number {
+  const normalized = normalizeDailyCardGoal(value);
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(DAILY_CARD_GOAL_STORAGE_KEY, String(normalized));
+    } catch {
+      // Local storage can be unavailable in private browsing or test environments.
+    }
+  }
+  return normalized;
+}
 
 function assertDateString(dateStr: string): void {
   if (!DATE_PATTERN.test(dateStr)) {
@@ -151,9 +183,19 @@ async function selectDailyItems(
   totalTarget: number,
   excludeIds: Set<string>
 ): Promise<ContentItem[]> {
-  const phraseItems = await selectItemsForCategory('survival_phrase', 3, excludeIds);
-  const pvItems = await selectItemsForCategory('phrasal_verb', 2, excludeIds);
-  const neededVocab = Math.max(0, totalTarget - (phraseItems.length + pvItems.length));
+  const safeTarget = normalizeDailyCardGoal(totalTarget);
+  const phraseItems = await selectItemsForCategory(
+    'survival_phrase',
+    Math.min(3, safeTarget),
+    excludeIds
+  );
+  const remainingAfterPhrases = Math.max(0, safeTarget - phraseItems.length);
+  const pvItems = await selectItemsForCategory(
+    'phrasal_verb',
+    Math.min(2, remainingAfterPhrases),
+    excludeIds
+  );
+  const neededVocab = Math.max(0, safeTarget - (phraseItems.length + pvItems.length));
   const vocabItems = await selectItemsForCategory('vocabulary', neededVocab, excludeIds);
 
   return [...vocabItems, ...phraseItems, ...pvItems];
@@ -313,7 +355,7 @@ export async function getAvailableQueueDates(): Promise<string[]> {
  * yesterday's queue as today's queue.
  */
 export async function getOrCreateTodayQueue(
-  totalTarget = 10
+  totalTarget = getDailyCardGoal()
 ): Promise<QueueResult> {
   const db = getDB();
   const todayStr = getTodayDateString();
@@ -367,7 +409,7 @@ export async function getOrCreateTodayQueue(
  * Force regenerates today's queue in strict sequential order.
  */
 export async function regenerateTodayQueue(
-  totalTarget = 10
+  totalTarget = getDailyCardGoal()
 ): Promise<QueueResult> {
   return createQueueForDate(getTodayDateString(), totalTarget);
 }

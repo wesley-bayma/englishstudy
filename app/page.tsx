@@ -9,7 +9,8 @@ import {
   setQueueItemAnkiStatus,
   skipQueueItem,
   getFormattedDate,
-  getTodayDateString 
+  getTodayDateString,
+  getDailyCardGoal
 } from '../lib/daily-queue';
 import { ContentCard } from '../components/ContentCard';
 import { ItemDetailModal } from '../components/ItemDetailModal';
@@ -233,7 +234,7 @@ export default function TodayPage() {
   const phraseDone = phraseItems.filter(i => i.anki_status === 'created').length;
   const pvDone = pvItems.filter(i => i.anki_status === 'created').length;
   const totalDone = (queue?.completed_count) || 0;
-  const totalTarget = (queue?.target_count) || 10;
+  const totalTarget = (queue?.target_count) || getDailyCardGoal();
   const progressPercent = totalTarget > 0 ? Math.round((totalDone / totalTarget) * 100) : 0;
 
   const filteredItems = activeTypeFilter === 'all' 
@@ -364,7 +365,7 @@ export default function TodayPage() {
             </div>
           </div>
           <p className="text-[11px] text-slate-400 border-t border-dark-border pt-2">
-            📌 <strong>Regra de transição:</strong> Quando as frases (#100) e os phrasal verbs (#150) terminarem, a cota diária de 10 continuará sendo preenchida exclusivamente pelas palavras de vocabulário da sequência.
+            📌 <strong>Regra de transição:</strong> Quando as frases (#100) e os phrasal verbs (#150) terminarem, a meta diária de {totalTarget} continuará sendo preenchida exclusivamente pelas palavras de vocabulário da sequência.
           </p>
         </div>
       )}
