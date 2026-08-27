@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import { validateCanonicalCard } from '../../../../lib/card-format';
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,18 +13,14 @@ export async function POST(req: NextRequest) {
     const apiKey = userApiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
     if (!apiKey) {
-      // Deterministic evaluation fallback
-      const obs: string[] = [];
-      const wordCount = front.trim().split(/\s+/).length;
-      if (wordCount > 10) obs.push('Frase na frente um pouco longa. Prefira frases curtas de 5–7 palavras.');
-      if (!front.includes('(') && !front.includes('..')) obs.push('Recomendado incluir uma lacuna ou dica entre parênteses para recuperação ativa.');
+      const obs = validateCanonicalCard(front, back, type);
 
       return NextResponse.json({
         status: obs.length === 0 ? 'good' : (obs.length === 1 ? 'improvable' : 'bad'),
         status_label: obs.length === 0 ? '✅ Bom' : (obs.length === 1 ? '⚠️ Pode melhorar' : '❌ Problema importante'),
         score: obs.length === 0 ? 95 : (obs.length === 1 ? 75 : 50),
-        observations: obs.length > 0 ? obs : ['Estrutura atende aos princípios de 1 alvo e recuperação ativa.'],
-        summary: obs.length === 0 ? 'Card bem equilibrado e natural.' : 'Alguns ajustes simples podem otimizar seu aprendizado.'
+        observations: obs.length > 0 ? obs : ['Estrutura atende às regras de recuperação ativa.'],
+        summary: obs.length === 0 ? 'Card bem equilibrado e natural.' : 'Alguns ajustes são necessários.'
       });
     }
 
@@ -86,12 +83,12 @@ REGRAS CANÔNICAS DE AVALIAÇÃO:
 4. Frase natural e realista em inglês.
 5. Evitar palavras excessivamente difíceis no contexto da frase.
 6. Recuperação ativa garantida (a frente força a mente a buscar a palavra/chunk em inglês).
-7. Áudio no VERSO (nunca na frente para não dar spoiler).
+7. O verso pode conter somente a pronúncia IPA como metadado; não exija nem escreva um rótulo de áudio.
 
 PADRÕES ESPERADOS PELO USUÁRIO:
-- Vocabulário: Frente "I forgot my (carteira) again." -> Verso "wallet /IPA/\nI forgot my wallet again.\n🔊 Áudio no verso."
-- Frase: Frente "Could you speak (..?)?\nVocê poderia falar mais devagar?" -> Verso "Could you speak more slowly?\n🔊 Áudio no verso."
-- Phrasal Verb: Frente "I need to (PV: descobrir) the truth." -> Verso "find out — finding out — found out\nI need to find out the truth.\n🔊 Áudio no verso."
+- Vocabulário: Frente "I bought an (maçã)." -> Verso "I bought an (apple).\n/ˈæpəl/"
+- Frase: Frente "Could you speak (_____)?\nVocê poderia falar mais devagar?" -> Verso "Could you speak more slowly?\n/kʊd juː spiːk mɔːr ˈsloʊ.li/"
+- Phrasal Verb: Frente "I need to (PV: descobrir) the truth." -> Verso "I need to (find out) the truth.\n/faɪnd aʊt/"
 
 Avalie o card segundo essas regras e retorne no máximo 3 observações concisas e diretas (sem textos longos!). Responda ESTRITAMENTE em JSON.`;
 

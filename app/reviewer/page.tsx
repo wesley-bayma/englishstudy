@@ -42,14 +42,14 @@ export default function ReviewerPage() {
   const loadExample = (exType: ContentType) => {
     setType(exType);
     if (exType === 'vocabulary') {
-      setFront('I forgot my (carteira) again.');
-      setBack('wallet /ˈwɑː.lət/\nI forgot my wallet again.');
+      setFront('I bought an (maçã).');
+      setBack('I bought an (apple).\n/ˈæpəl/');
     } else if (exType === 'survival_phrase') {
-      setFront('Could you speak (..?)?\nVocê poderia falar mais devagar?');
-      setBack('Could you speak more slowly?');
+      setFront('Could you speak (_____)?\nVocê poderia falar mais devagar?');
+      setBack('Could you speak more slowly?\n/kʊd juː spiːk mɔːr ˈsloʊ.li/');
     } else {
       setFront('I need to (PV: descobrir) the truth.');
-      setBack('find out — finding out — found out\nI need to find out the truth.');
+      setBack('I need to (find out) the truth.\n/faɪnd aʊt/');
     }
     setResult(null);
   };

@@ -113,6 +113,14 @@ export interface StrategicGapInfo {
   explanation?: string;
 }
 
+export interface PhrasalVerbInfo {
+  primary_meaning: string;
+  separability: 'separable' | 'inseparable' | 'both' | 'not_applicable';
+  transitivity: 'transitive' | 'intransitive' | 'both';
+  object_pattern: string;
+  pronoun_rule?: string;
+}
+
 export interface StudySheet {
   term: string;
   type?: ContentType;
@@ -126,6 +134,7 @@ export interface StudySheet {
   collocations?: CollocationItem[];
   examples?: ExampleSentenceItem[];
   related_words?: string[];
+  phrasal_verb_info?: PhrasalVerbInfo;
 
   // For Survival Phrases
   pattern?: string;

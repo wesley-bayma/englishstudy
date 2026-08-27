@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { StudySheet, ContentType } from '../lib/types';
+import { StudySheet } from '../lib/types';
+import { buildCanonicalCard } from '../lib/card-format';
 import { 
   Volume2, 
   Copy, 
@@ -29,6 +30,7 @@ export function StudySheetView({ sheet, number }: StudySheetViewProps) {
     sheet.type === 'personal_phrase' || 
     (sheet.grammatical_class && sheet.grammatical_class.toLowerCase().includes('frase')) ||
     Boolean(sheet.pattern || sheet.strategic_gap);
+  const canonicalCard = buildCanonicalCard(sheet);
 
   const speak = (text: string) => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -63,22 +65,22 @@ export function StudySheetView({ sheet, number }: StudySheetViewProps) {
         });
         text += `\n`;
       }
-      if (sheet.strategic_gap) {
-        text += `Card Anki Recomendado:\nFrente:\n${sheet.strategic_gap.gap_sentence}\n${sheet.translation}\n\nVerso:\n${sheet.term}\n\n`;
+      if (canonicalCard) {
+        text += `Card Anki Recomendado:\nFrente:\n${canonicalCard.front}\n\nVerso:\n${canonicalCard.back}\n\n`;
       }
     } else {
       if (sheet.useful_structures && sheet.useful_structures.length > 0) {
         text += `Estruturas úteis:\n${sheet.useful_structures.join('\n')}\n\n`;
       }
       if (sheet.collocations && sheet.collocations.length > 0) {
-        text += `4 colocações comuns:\n`;
+        text += `Colocações comuns:\n`;
         sheet.collocations.forEach(c => {
           text += `${c.en} — ${c.pt}\n`;
         });
         text += `\n`;
       }
       if (sheet.examples && sheet.examples.length > 0) {
-        text += `5 exemplos:\n`;
+        text += `Exemplos naturais:\n`;
         sheet.examples.forEach(e => {
           text += `${e.en} — ${e.pt}\n`;
         });
@@ -247,12 +249,34 @@ export function StudySheetView({ sheet, number }: StudySheetViewProps) {
             </div>
           )}
 
+          {sheet.phrasal_verb_info && (
+            <div className="p-4 bg-dark-bg rounded-2xl border-2 border-card-amber/30 space-y-2">
+              <span className="text-[11px] font-mono font-bold text-card-amber uppercase tracking-wider block">
+                Comportamento do Phrasal Verb:
+              </span>
+              <p className="text-sm text-white">
+                Sentido principal: <strong>{sheet.phrasal_verb_info.primary_meaning}</strong>
+              </p>
+              <p className="text-xs text-slate-300">
+                Estrutura: {sheet.phrasal_verb_info.object_pattern}
+              </p>
+              <p className="text-xs text-slate-300">
+                {sheet.phrasal_verb_info.separability} · {sheet.phrasal_verb_info.transitivity}
+              </p>
+              {sheet.phrasal_verb_info.pronoun_rule && (
+                <p className="text-xs text-card-amber">
+                  ⚠️ {sheet.phrasal_verb_info.pronoun_rule}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* 4 Collocations (Chunks) */}
           {sheet.collocations && sheet.collocations.length > 0 && (
             <div className="space-y-3">
               <span className="text-xs font-mono font-bold text-card-pink uppercase tracking-wider flex items-center gap-1.5">
                 <Layers className="w-4 h-4 text-card-pink" />
-                4 Colocações Comuns (Chunks):
+                Colocações Comuns (Chunks):
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {sheet.collocations.map((c, idx) => (
@@ -300,7 +324,7 @@ export function StudySheetView({ sheet, number }: StudySheetViewProps) {
             <div className="space-y-3">
               <span className="text-xs font-mono font-bold text-card-lime uppercase tracking-wider flex items-center gap-1.5">
                 <BookOpen className="w-4 h-4 text-card-lime" />
-                5 Exemplos Reais para Anki:
+                Exemplos Reais para Anki:
               </span>
               <div className="space-y-2">
                 {sheet.examples.map((ex, idx) => (
@@ -377,36 +401,8 @@ export function StudySheetView({ sheet, number }: StudySheetViewProps) {
           let cardFront = '';
           let cardBack = '';
 
-          if (isSurvivalPhrase) {
-            // Survival Phrase: Front = gap sentence + full Portuguese translation; Back = full English sentence
-            if (sheet.strategic_gap?.gap_sentence) {
-              cardFront = `${sheet.strategic_gap.gap_sentence}\n${sheet.translation}`;
-            } else {
-              const words = sheet.term.trim().split(' ');
-              const gapTarget = words.length > 3 ? words.slice(-2).join(' ') : words[words.length - 1];
-              cardFront = `${sheet.term.replace(gapTarget, '(_____)')}\n${sheet.translation}`;
-            }
-            cardBack = sheet.term;
-          } else {
-            const isPv = sheet.grammatical_class?.toLowerCase().includes('phrasal');
-            const firstEx = (sheet.examples && sheet.examples[0]) || { en: sheet.term, pt: sheet.translation };
-
-            if (isPv) {
-              const pvMeaning = sheet.translation.split(';')[0].split(',')[0].trim();
-              cardFront = firstEx.en.replace(new RegExp(`\\b${sheet.term}\\b`, 'i'), `(PV: ${pvMeaning})`);
-              if (!cardFront.includes('(PV:')) {
-                cardFront = `I need to (PV: ${pvMeaning}) this.`;
-              }
-              cardBack = `${sheet.term} ${sheet.ipa}\n${firstEx.en}`;
-            } else {
-              const vocabMeaning = sheet.translation.split(',')[0].split('/')[0].trim();
-              cardFront = firstEx.en.replace(new RegExp(`\\b${sheet.term}\\b`, 'i'), `(${vocabMeaning})`);
-              if (!cardFront.includes('(')) {
-                cardFront = `I need (${vocabMeaning}) today.`;
-              }
-              cardBack = `${sheet.term} ${sheet.ipa}\n${firstEx.en}`;
-            }
-          }
+          cardFront = canonicalCard?.front || '';
+          cardBack = canonicalCard?.back || '';
 
           return (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -416,27 +412,35 @@ export function StudySheetView({ sheet, number }: StudySheetViewProps) {
                   <span className="text-[10px] font-mono font-bold text-card-pink uppercase tracking-wider block mb-1">
                     FRENTE DO CARD:
                   </span>
-                  <p className="text-sm font-bold text-white whitespace-pre-line leading-snug font-sans">
-                    {cardFront}
-                  </p>
+                  {canonicalCard ? (
+                    <p className="text-sm font-bold text-white whitespace-pre-line leading-snug font-sans">
+                      {cardFront}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Não foi possível montar um card seguro: falta um exemplo natural válido ou uma lacuna estratégica.
+                    </p>
+                  )}
                 </div>
 
-                <button
-                  onClick={() => copyText(cardFront, 'card_front')}
-                  className="mt-3 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-card-pink/10 hover:bg-card-pink/20 text-card-pink text-xs font-mono font-bold transition-colors w-full"
-                >
-                  {copiedSection === 'card_front' ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      Frente Copiada!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      Copiar Frente
-                    </>
-                  )}
-                </button>
+                {canonicalCard && (
+                  <button
+                    onClick={() => copyText(cardFront, 'card_front')}
+                    className="mt-3 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-card-pink/10 hover:bg-card-pink/20 text-card-pink text-xs font-mono font-bold transition-colors w-full"
+                  >
+                    {copiedSection === 'card_front' ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        Frente Copiada!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        Copiar Frente
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
 
               {/* Verso */}
@@ -445,27 +449,35 @@ export function StudySheetView({ sheet, number }: StudySheetViewProps) {
                   <span className="text-[10px] font-mono font-bold text-card-lime uppercase tracking-wider block mb-1">
                     VERSO DO CARD:
                   </span>
-                  <p className="text-sm font-medium text-slate-200 whitespace-pre-line leading-snug font-sans">
-                    {cardBack}
-                  </p>
+                  {canonicalCard ? (
+                    <p className="text-sm font-medium text-slate-200 whitespace-pre-line leading-snug font-sans">
+                      {cardBack}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      O verso não será gerado até existir conteúdo natural suficiente.
+                    </p>
+                  )}
                 </div>
 
-                <button
-                  onClick={() => copyText(cardBack, 'card_back')}
-                  className="mt-3 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-card-lime/10 hover:bg-card-lime/20 text-card-lime text-xs font-mono font-bold transition-colors w-full"
-                >
-                  {copiedSection === 'card_back' ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      Verso Copiado!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      Copiar Verso
-                    </>
-                  )}
-                </button>
+                {canonicalCard && (
+                  <button
+                    onClick={() => copyText(cardBack, 'card_back')}
+                    className="mt-3 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-card-lime/10 hover:bg-card-lime/20 text-card-lime text-xs font-mono font-bold transition-colors w-full"
+                  >
+                    {copiedSection === 'card_back' ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        Verso Copiado!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        Copiar Verso
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           );

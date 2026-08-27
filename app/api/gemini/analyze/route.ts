@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
         confidence: 0.8,
         meaning_pt: '',
         explanation: 'Configure sua chave de API Gemini em Progresso > Configurações para análise avançada de IA.',
-        suggested_example: context || query
+        suggested_example: context || ''
       });
     }
 
@@ -98,8 +98,10 @@ ${candidates.length > 0 ? candidates.map((c: string) => `- ${c}`).join('\n') : '
 Instruções fundamentais:
 1. Se "${query}" for uma forma flexionada (ex: gerúndio, passado, plural, particípio) de uma palavra base existente nos candidatos (ex: "running" -> "run", "finding out" -> "find out"), identifique como "inflection", aponte a base_form correspondente, marque has_possible_match = true e matched_existing_content com o item do banco. Explique de forma amigável em português (ex: "'running' é uma forma flexionada do verbo 'run' que já existe na Base").
 2. Se "${query}" for uma frase com a mesma função comunicativa/sentido de uma frase existente (ex: "Where's the bathroom?" vs "Where is the restroom?"), identifique como "semantic_similarity", marque has_possible_match = true e matched_existing_content = a frase do banco. Explique a sutil diferença ou equivalência comunicativa.
-3. Se for uma palavra nova ou frase sem relação com os candidatos, forneça a classificação correta, forma base, tradução concisa em português e uma frase de exemplo natural de 5 a 7 palavras.
-4. Responda ESTRITAMENTE em formato JSON.`;
+3. Se for uma palavra nova ou frase sem relação com os candidatos, forneça a classificação correta, forma base e tradução concisa em português.
+4. Só forneça suggested_example quando houver um contexto fornecido pelo usuário ou quando a frase for realmente natural e semanticamente validada. Nunca use o termo isolado como exemplo e nunca invente uma frase genérica para preencher o campo.
+5. Uma frase completa deve ser classificada como survival_phrase e preservada como unidade comunicativa; não a transforme em colocação.
+6. Responda ESTRITAMENTE em formato JSON.`;
 
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();

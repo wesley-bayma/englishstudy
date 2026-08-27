@@ -44,6 +44,7 @@ export function ItemDetailModal({
   const [encounters, setEncounters] = useState<Encounter[]>([]);
   const [sheet, setSheet] = useState<StudySheet | null>(null);
   const [isLoadingSheet, setIsLoadingSheet] = useState(false);
+  const [sheetError, setSheetError] = useState<string | null>(null);
   const [autoAdvanceFeedback, setAutoAdvanceFeedback] = useState<string | null>(null);
 
   useEffect(() => {
@@ -51,8 +52,14 @@ export function ItemDetailModal({
       getItemEncounters(item.id).then(setEncounters);
       setIsLoadingSheet(true);
       setSheet(null);
-      getStudySheetWithGemini(item.content, item.type, item.meaning_pt || '')
-        .then(res => setSheet(res))
+      setSheetError(null);
+      getStudySheetWithGemini(item.content, item.type, item.meaning_pt || '', item.example || '')
+        .then(res => {
+          setSheet(res);
+          if (!res) {
+            setSheetError('Não foi possível gerar uma ficha natural. Configure a API do Gemini ou adicione um contexto válido para este item.');
+          }
+        })
         .catch(err => console.error('Failed to load study sheet:', err))
         .finally(() => setIsLoadingSheet(false));
     }
@@ -239,6 +246,10 @@ export function ItemDetailModal({
             </div>
           ) : sheet ? (
             <StudySheetView sheet={sheet} number={item.original_order || undefined} />
+          ) : sheetError ? (
+            <div className="p-6 text-center bg-dark-bg rounded-3xl border border-card-amber/30">
+              <p className="text-xs font-mono text-card-amber leading-relaxed">{sheetError}</p>
+            </div>
           ) : null}
 
           {/* Encounters History */}

@@ -1,4 +1,5 @@
-import { GeminiAnalysisResult, CardReviewResult, ContentType } from './types';
+import { GeminiAnalysisResult, CardReviewResult, ContentType, StudySheet } from './types';
+import { validateCanonicalCard } from './card-format';
 
 export function getStoredApiKey(): string {
   if (typeof window === 'undefined') return '';
@@ -50,7 +51,7 @@ export async function analyzeWithGemini(
       confidence: 0.8,
       meaning_pt: '',
       explanation: 'Análise offline básica (configure sua chave Gemini nas Configurações para análise avançada de variantes e lematização).',
-      suggested_example: query
+      suggested_example: contextSentence || ''
     };
   }
 }
@@ -86,36 +87,28 @@ export async function reviewCardWithGemini(
   } catch (error) {
     console.warn('Gemini card review failed or offline, returning fallback evaluation:', error);
     
-    // Deterministic rule checks fallback
-    const obs: string[] = [];
-    const wordCount = front.trim().split(/\s+/).length;
-    
-    if (wordCount > 10) {
-      obs.push('Frase na frente um pouco longa. Prefira frases curtas de 5–7 palavras.');
-    }
-    if (!front.includes('(') && !front.includes('..')) {
-      obs.push('Recomendado incluir uma lacuna ou dica entre parênteses para recuperação ativa.');
-    }
+    const obs = validateCanonicalCard(front, back, type);
 
 
     return {
       status: obs.length === 0 ? 'good' : (obs.length === 1 ? 'improvable' : 'bad'),
       status_label: obs.length === 0 ? '✅ Bom' : (obs.length === 1 ? '⚠️ Pode melhorar' : '❌ Problema importante'),
       score: obs.length === 0 ? 95 : (obs.length === 1 ? 75 : 50),
-      observations: obs.length > 0 ? obs : ['Estrutura básica do card atende às regras canônicas de recuperação ativa.'],
-      summary: obs.length === 0 ? 'Card bem estruturado!' : 'Card avaliado com regras locais.'
+      observations: obs.length > 0 ? obs : ['Estrutura atende às regras canônicas de recuperação ativa.'],
+      summary: obs.length === 0 ? 'Card bem estruturado!' : 'Alguns ajustes são necessários.'
     };
   }
 }
 
 /**
- * Fetch complete pedagogical study sheet (IPA, collocations, 5 examples, tips) with Gemini Flash
+ * Fetch complete pedagogical study sheet (IPA, natural usage, examples and tips) with Gemini Flash
  */
 export async function getStudySheetWithGemini(
   term: string,
   type: ContentType = 'vocabulary',
-  meaningPt: string = ''
-): Promise<any> {
+  meaningPt: string = '',
+  contextSentence: string = ''
+): Promise<StudySheet | null> {
   const apiKey = getStoredApiKey();
 
   try {
@@ -126,6 +119,7 @@ export async function getStudySheetWithGemini(
         term,
         type,
         meaningPt,
+        contextSentence,
         apiKey
       })
     });
@@ -137,31 +131,7 @@ export async function getStudySheetWithGemini(
     const data = await res.json();
     return data;
   } catch (error) {
-    console.warn('Error fetching study sheet from Gemini, returning fallback:', error);
-    return {
-      term,
-      ipa: `/${term}/`,
-      grammatical_class: type === 'phrasal_verb' ? 'phrasal verb' : (type === 'survival_phrase' ? 'frase de sobrevivência' : 'substantivo/verbo'),
-      translation: meaningPt || term,
-      connotation_usage: `Uso no nível A2 para "${term}".`,
-      useful_structures: [],
-      collocations: [
-        { en: `use ${term}`, pt: `usar ${meaningPt || term}` },
-        { en: `need ${term}`, pt: `precisar de ${meaningPt || term}` },
-        { en: `find ${term}`, pt: `encontrar ${meaningPt || term}` },
-        { en: `have ${term}`, pt: `ter ${meaningPt || term}` }
-      ],
-      examples: [
-        { en: `I need ${term} today.`, pt: `Eu preciso de ${meaningPt || term} hoje.` },
-        { en: `Can you show me the ${term}?`, pt: `Você pode me mostrar o(a) ${meaningPt || term}?` },
-        { en: `Where is the ${term}?`, pt: `Onde está o(a) ${meaningPt || term}?` },
-        { en: `I have a ${term} here.`, pt: `Eu tenho um(a) ${meaningPt || term} aqui.` },
-        { en: `This is my favorite ${term}.`, pt: `Este é meu(minha) ${meaningPt || term} favorito(a).` }
-      ],
-      related_words: [meaningPt || term],
-      tip_warning: `💡 Dica: Pratique a pronúncia e o contexto de "${term}" em frases simples do cotidiano.`
-    };
+    console.warn('Error fetching study sheet from Gemini:', error);
+    return null;
   }
 }
-
-

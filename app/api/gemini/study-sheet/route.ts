@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import { StudySheet } from '../../../../lib/types';
+import { validateStudySheet } from '../../../../lib/card-format';
 
 // Pre-curated instant entries matching user's canonical examples
 const CURATED_SHEETS: Record<string, any> = {
@@ -132,55 +134,67 @@ const CURATED_SHEETS: Record<string, any> = {
     type: 'phrasal_verb',
     ipa: '/ɡoʊ ɑːn/',
     grammatical_class: 'phrasal verb',
-    translation: 'continuar; acontecer',
+    translation: 'continuar',
     connotation_usage: 'Infinitivo: to go on /tə ɡoʊ ɑːn/. Dois sentidos fundamentais: ① go on = continuar / ② go on = acontecer.',
     useful_structures: [
-      '① go on = continuar: Please, go on. (Por favor, continue.)',
-      '② go on = acontecer: What\'s going on? (O que está acontecendo?)'
+      'go on + verb-ing: He went on talking. (Ele continuou falando.)',
+      'go on with + noun: Go on with your work. (Continue seu trabalho.)'
     ],
     collocations: [
       { en: 'go on talking', pt: 'continuar falando' },
       { en: 'go on working', pt: 'continuar trabalhando' },
-      { en: 'what\'s going on?', pt: 'o que está acontecendo?' },
       { en: 'go on with something', pt: 'continuar algo' }
     ],
     examples: [
       { en: 'Please, go on.', pt: 'Por favor, continue.' },
       { en: 'He went on talking.', pt: 'Ele continuou falando.' },
-      { en: 'What\'s going on here?', pt: 'O que está acontecendo aqui?' },
       { en: 'We can\'t go on like this.', pt: 'Não podemos continuar assim.' },
-      { en: 'Go on with your work.', pt: 'Continue seu trabalho.' }
+      { en: 'Go on with your work.', pt: 'Continue seu trabalho.' },
+      { en: 'She went on working late.', pt: 'Ela continuou trabalhando até tarde.' }
     ],
     related_words: ['continue (continuar)', 'happen (acontecer)', 'keep going (continuar em frente)'],
-    tip_warning: '💡 Como go on possui muitos significados, associe principalmente go on → continuar e What\'s going on? → O que está acontecendo?'
+    phrasal_verb_info: {
+      primary_meaning: 'continuar',
+      separability: 'inseparable',
+      transitivity: 'both',
+      object_pattern: 'go on + verb-ing ou go on with + noun',
+      pronoun_rule: 'Com go on with, o pronome vem depois da preposição: go on with it.'
+    },
+    tip_warning: '💡 Nesta ficha, go on significa continuar. O sentido “acontecer” em What\'s going on? deve ser estudado separadamente.'
   },
   'pick up': {
     term: 'pick up',
     type: 'phrasal_verb',
     ipa: '/pɪk ʌp/',
     grammatical_class: 'phrasal verb',
-    translation: 'pegar; buscar alguém; atender o telefone',
+    translation: 'buscar alguém',
     connotation_usage: 'Infinitivo: to pick up /tə pɪk ʌp/. Três sentidos essenciais: ① pegar algo / ② buscar alguém / ③ atender o telefone.',
     useful_structures: [
-      '① pegar algo: Pick up your phone. (Pegue seu celular.)',
-      '② buscar alguém: I\'ll pick you up at 8. (Vou buscar você às 8.)',
-      '③ atender o telefone: Pick up the phone! (Atenda o telefone!)'
+      'pick someone up at + place/time: I\'ll pick you up at 8. (Vou buscar você às 8.)',
+      'pick someone up from + place: I\'ll pick you up from school. (Vou buscar você na escola.)'
     ],
     collocations: [
-      { en: 'pick up the phone', pt: 'atender/pegar o telefone' },
-      { en: 'pick up a package', pt: 'buscar/pegar um pacote' },
       { en: 'pick someone up', pt: 'buscar alguém' },
-      { en: 'pick something up', pt: 'pegar algo' }
+      { en: 'pick someone up at the airport', pt: 'buscar alguém no aeroporto' },
+      { en: 'pick someone up from school', pt: 'buscar alguém na escola' }
     ],
     examples: [
-      { en: 'Pick up your bag.', pt: 'Pegue sua bolsa/mochila.' },
       { en: 'I\'ll pick you up at the airport.', pt: 'Vou buscar você no aeroporto.' },
       { en: 'Can you pick me up at 6?', pt: 'Você pode me buscar às 6?' },
-      { en: 'Please pick up the phone.', pt: 'Por favor, atenda o telefone.' },
-      { en: 'I need to pick up my package.', pt: 'Preciso buscar meu pacote.' }
+      { en: 'She will pick him up after work.', pt: 'Ela vai buscá-lo depois do trabalho.' },
+      { en: 'Please pick me up from school.', pt: 'Por favor, me busque na escola.' },
+      { en: 'Who is picking you up?', pt: 'Quem vai buscar você?' },
+      { en: 'We will pick up the guest.', pt: 'Nós vamos buscar o convidado.' }
     ],
     related_words: ['pick (escolher/pegar)', 'pickup (retirada/coleta)', 'drop off (deixar alguém/algo)'],
-    tip_warning: '💡 pick up × take: pick up significa "buscar/pegar" (I\'ll pick you up = vou buscar você), enquanto take significa "levar" (I\'ll take you to the airport = vou levar você ao aeroporto).'
+    phrasal_verb_info: {
+      primary_meaning: 'buscar alguém',
+      separability: 'separable',
+      transitivity: 'transitive',
+      object_pattern: 'pick someone up at/from + place',
+      pronoun_rule: 'Com pronome, ele fica no meio: pick me up, nunca pick up me.'
+    },
+    tip_warning: '💡 pick up é separável neste sentido: pick someone up, mas pick me up com pronomes. O sentido “pegar algo” deve ser estudado separadamente.'
   },
 
   // CURATED SURVIVAL PHRASES
@@ -272,14 +286,22 @@ const CURATED_SHEETS: Record<string, any> = {
 
 export async function POST(req: NextRequest) {
   try {
-    const { term, type = 'vocabulary', meaningPt = '', apiKey: userApiKey } = await req.json();
+    const {
+      term,
+      type = 'vocabulary',
+      meaningPt = '',
+      contextSentence = '',
+      apiKey: userApiKey
+    } = await req.json();
 
     if (!term) {
       return NextResponse.json({ error: 'Term is required' }, { status: 400 });
     }
 
     const cleanTerm = term.trim().toLowerCase();
-    const isSurvivalPhrase = type === 'survival_phrase' || type === 'personal_phrase' || (term.includes(' ') && (term.endsWith('?') || term.endsWith('.') || term.split(' ').length >= 4));
+    const looksLikeCompleteSentence = term.trim().split(/\s+/).length >= 3 && /[?!.]$/.test(term.trim());
+    const isSurvivalPhrase = type === 'survival_phrase' || type === 'personal_phrase' || looksLikeCompleteSentence;
+    const isPhrasalVerb = type === 'phrasal_verb';
 
     // Check curated database first
     if (CURATED_SHEETS[cleanTerm]) {
@@ -294,33 +316,9 @@ export async function POST(req: NextRequest) {
     // 1. SURVIVAL PHRASE HANDLER
     if (isSurvivalPhrase) {
       if (!apiKey) {
-        // Fallback for survival phrase without API key
-        const words = term.trim().split(' ');
-        const gapTarget = words.length > 3 ? words.slice(-2).join(' ') : words[words.length - 1];
-        const gapSentence = term.replace(gapTarget, '(_____)');
-
         return NextResponse.json({
-          term,
-          type: 'survival_phrase',
-          ipa: `/${cleanTerm}/`,
-          grammatical_class: 'frase de sobrevivência',
-          translation: meaningPt || term,
-          connotation_usage: `Frase comunicativa para situações reais e práticas do cotidiano.`,
-          pattern: `${words.slice(0, 2).join(' ')} + [COMPLEMENTO]?`,
-          variations: [
-            { en: term, pt: meaningPt || 'Frase original' },
-            { en: `Could you help me with this?`, pt: 'Você poderia me ajudar com isso?' },
-            { en: `Excuse me, where is this?`, pt: 'Com licença, onde fica isto?' },
-            { en: `Thank you very much.`, pt: 'Muito obrigado(a).' }
-          ],
-          strategic_gap: {
-            gap_sentence: gapSentence,
-            expected_chunk: gapTarget,
-            explanation: 'Esconde o chunk essencial para recuperação ativa no Anki.'
-          },
-          tip_warning: `💡 Dica: Pratique a frase completa em voz alta focando no ritmo e entonação natural.`,
-          isCurated: false
-        });
+          error: 'Não há dados suficientes para gerar uma ficha natural sem a API do Gemini.'
+        }, { status: 503 });
       }
 
       const genAI = new GoogleGenerativeAI(apiKey);
@@ -395,37 +393,22 @@ GERE UMA FICHA DE FRASE DE SOBREVIVÊNCIA:
 7. Dica de ouro ou atenção cultural/prática.`;
 
       const result = await model.generateContent(prompt);
-      const parsed = JSON.parse(result.response.text());
-      return NextResponse.json({ ...parsed, isCurated: false });
+      const parsed = JSON.parse(result.response.text()) as StudySheet;
+      const validationErrors = validateStudySheet({ ...parsed, type: 'survival_phrase' });
+      if (validationErrors.length > 0) {
+        return NextResponse.json({
+          error: 'A IA retornou uma ficha que não atende às regras pedagógicas.',
+          details: validationErrors
+        }, { status: 422 });
+      }
+      return NextResponse.json({ ...parsed, type: 'survival_phrase', isCurated: false });
     }
 
     // 2. VOCABULARY & PHRASAL VERBS HANDLER
     if (!apiKey) {
       return NextResponse.json({
-        term,
-        type,
-        ipa: `/${cleanTerm}/`,
-        grammatical_class: type === 'phrasal_verb' ? 'phrasal verb' : 'substantivo/verbo',
-        translation: meaningPt || cleanTerm,
-        connotation_usage: `Uso no nível A2 para "${term}".`,
-        useful_structures: [],
-        collocations: [
-          { en: `have ${term}`, pt: `ter ${meaningPt || term}` },
-          { en: `need ${term}`, pt: `precisar de ${meaningPt || term}` },
-          { en: `find ${term}`, pt: `encontrar ${meaningPt || term}` },
-          { en: `use ${term}`, pt: `usar ${meaningPt || term}` }
-        ],
-        examples: [
-          { en: `I need ${term} today.`, pt: `Eu preciso de ${meaningPt || term} hoje.` },
-          { en: `She has a lot of ${term}.`, pt: `Ela tem muito(a) ${meaningPt || term}.` },
-          { en: `Where can I find ${term}?`, pt: `Onde posso encontrar ${meaningPt || term}?` },
-          { en: `This is an important ${term}.`, pt: `Este é um(a) ${meaningPt || term} importante.` },
-          { en: `Please show me the ${term}.`, pt: `Por favor, me mostre o(a) ${meaningPt || term}.` }
-        ],
-        related_words: [meaningPt || term],
-        tip_warning: `💡 Dica: Pratique a palavra em frases curtas de 5 a 7 palavras no seu Anki.`,
-        isCurated: false
-      });
+        error: 'Não há dados suficientes para gerar uma ficha natural sem a API do Gemini.'
+      }, { status: 503 });
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -445,11 +428,11 @@ GERE UMA FICHA DE FRASE DE SOBREVIVÊNCIA:
             useful_structures: {
               type: SchemaType.ARRAY,
               items: { type: SchemaType.STRING },
-              description: 'Estruturas gramaticais ou sentidos numerados (ex: ① go on = continuar / ② go on = acontecer)'
+              description: 'Somente estruturas úteis e naturais para o sentido principal, sem preencher volume artificialmente'
             },
             collocations: {
               type: SchemaType.ARRAY,
-              description: 'Exatamente 4 colocações ou chunks comuns com tradução',
+              description: 'Somente colocações ou chunks frequentes, naturais e semanticamente coerentes; pode ser uma lista menor',
               items: {
                 type: SchemaType.OBJECT,
                 properties: {
@@ -461,7 +444,7 @@ GERE UMA FICHA DE FRASE DE SOBREVIVÊNCIA:
             },
             examples: {
               type: SchemaType.ARRAY,
-              description: 'Exatamente 5 frases curtas (5-8 palavras) reais e naturais no nível A2 com tradução',
+              description: 'Frases reais, naturais e adequadas ao nível; varie situações sem criar exemplos artificiais',
               items: {
                 type: SchemaType.OBJECT,
                 properties: {
@@ -475,6 +458,18 @@ GERE UMA FICHA DE FRASE DE SOBREVIVÊNCIA:
               type: SchemaType.ARRAY,
               items: { type: SchemaType.STRING },
               description: 'Palavras da mesma família com tradução entre parênteses'
+            },
+            phrasal_verb_info: {
+              type: SchemaType.OBJECT,
+              description: 'Obrigatório para phrasal verbs; descreve o único sentido priorizado e seu comportamento sintático',
+              properties: {
+                primary_meaning: { type: SchemaType.STRING },
+                separability: { type: SchemaType.STRING, description: 'separable, inseparable ou both' },
+                transitivity: { type: SchemaType.STRING, description: 'transitive, intransitive ou both' },
+                object_pattern: { type: SchemaType.STRING },
+                pronoun_rule: { type: SchemaType.STRING }
+              },
+              required: ['primary_meaning', 'separability', 'transitivity', 'object_pattern']
             },
             tip_warning: {
               type: SchemaType.STRING,
@@ -497,23 +492,31 @@ GERE UMA FICHA DE FRASE DE SOBREVIVÊNCIA:
       }
     });
 
-    const prompt = `Você é um linguista e professor de inglês de elite especializado em aquisição lexical de alta retenção no nível A2.
-Gere uma FICHA DE ESTUDO LEXICAL para a palavra/chunk: "${term}" (${type === 'phrasal_verb' ? 'Phrasal Verb' : 'Vocabulário'}).
-Tradução sugerida: "${meaningPt}".
+    const prompt = `Você é um professor de inglês comunicativo, especializado em aprendizagem ativa para a Camada do Viajante (A1/A2).
+Analise "${term}" como ${isPhrasalVerb ? 'PHRASAL VERB' : 'VOCABULÁRIO'}.
+Tradução sugerida pelo aluno: "${meaningPt}".
+Contexto fornecido pelo aluno, se houver: "${contextSentence}".
 
-ESTRUTURA OBRIGATÓRIA:
-1. Pronúncia IPA e classe gramatical.
-2. Tradução principal.
-3. Uso importante e particularidades.
-4. Estruturas úteis (se aplicável).
-5. 4 Colocações comuns (chunks naturais com tradução).
-6. 5 Exemplos reais curtos (5 a 8 palavras) no nível A2 com tradução.
-7. Palavras relacionadas.
-8. Dica de atenção pedagógica.`;
+REGRAS OBRIGATÓRIAS:
+1. Classifique internamente a entrada antes de gerar. Uma frase completa nunca pode ser tratada como palavra, colocação ou substantivo.
+2. Priorize um único significado frequente, útil e adequado ao nível. Não despeje significados distantes.
+3. Só inclua colocações realmente comuns e semanticamente naturais. Se não houver uma colocação segura, retorne uma lista menor.
+4. Os exemplos devem demonstrar uso real, variar contexto e conter exatamente o termo estudado; inclua ao menos um exemplo em que o termo apareça como sequência contínua para o card espelhado. Nunca invente uma frase genérica apenas para preencher a lista.
+5. Para PHRASAL VERB, mantenha o sentido escolhido em todos os exemplos e informe estrutura, transitividade, separabilidade e posição de pronomes.
+6. Não traduza phrasal verbs palavra por palavra.
+7. Gere IPA, classe gramatical, significado principal, uso, estruturas, colocações úteis, exemplos naturais, família de palavras e uma dica curta.
+8. Responda somente JSON conforme o schema. Campos sem informação segura devem ser arrays vazios; não use placeholders.`;
 
     const result = await model.generateContent(prompt);
-    const parsed = JSON.parse(result.response.text());
-    return NextResponse.json({ ...parsed, isCurated: false });
+    const parsed = JSON.parse(result.response.text()) as StudySheet;
+    const validationErrors = validateStudySheet({ ...parsed, type });
+    if (validationErrors.length > 0) {
+      return NextResponse.json({
+        error: 'A IA retornou uma ficha que não atende às regras pedagógicas.',
+        details: validationErrors
+      }, { status: 422 });
+    }
+    return NextResponse.json({ ...parsed, type, isCurated: false });
   } catch (error: any) {
     console.error('Error generating study sheet with Gemini:', error);
     return NextResponse.json({
