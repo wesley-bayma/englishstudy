@@ -8,7 +8,10 @@ import {
 import {
   getOrCreateTodayQueue,
   getTodayDateString,
+  getAvailableQueueDates,
+  getQueueForDate,
   regenerateTodayQueue,
+  setQueueItemAnkiStatus,
   skipQueueItem
 } from '../lib/daily-queue';
 import { DailyQueue } from '../lib/types';
@@ -86,6 +89,23 @@ describe('daily queue scheduling', () => {
     expect(result.queue.target_count).toBe(10);
   });
 
+  it('repairs a created item from yesterday even when its old queue is missing', async () => {
+    const today = getTodayDateString();
+    const yesterday = shiftDate(today, -1);
+    const db = getDB();
+
+    await db.content_items.update('base_vocab_1', {
+      anki_status: 'created',
+      anki_created_at: `${yesterday}T12:00:00.000Z`
+    });
+    await db.daily_queues.put(queueFor(today, ['base_vocab_1', 'base_vocab_20']));
+
+    const result = await getOrCreateTodayQueue();
+
+    expect(result.items.map(item => item.id)).not.toContain('base_vocab_1');
+    expect(result.queue.items.map(item => item.content_id)).not.toContain('base_vocab_1');
+  });
+
   it('keeps the same queue when refreshing on the same day', async () => {
     const today = getTodayDateString();
     const db = getDB();
@@ -97,6 +117,48 @@ describe('daily queue scheduling', () => {
 
     expect(result.queue.items).toEqual(existingQueue.items);
     expect(result.items.map(item => item.id)).toEqual(['base_vocab_250']);
+  });
+
+  it('loads a saved historical queue without creating a missing queue', async () => {
+    const today = getTodayDateString();
+    const yesterday = shiftDate(today, -1);
+    const db = getDB();
+
+    await db.daily_queues.put(queueFor(yesterday, ['base_vocab_250']));
+
+    const historical = await getQueueForDate(yesterday);
+    const missing = await getQueueForDate(shiftDate(yesterday, -1));
+
+    expect(historical?.items.map(item => item.id)).toEqual(['base_vocab_250']);
+    expect(missing).toBeNull();
+    expect(await db.daily_queues.get(`queue_${shiftDate(yesterday, -1)}`)).toBeUndefined();
+  });
+
+  it('does not expose future queues as available navigation dates', async () => {
+    const today = getTodayDateString();
+    const tomorrow = shiftDate(today, 1);
+    const db = getDB();
+
+    await db.daily_queues.put(queueFor(tomorrow, ['base_vocab_250']));
+
+    const dates = await getAvailableQueueDates();
+
+    expect(dates).toContain(today);
+    expect(dates).not.toContain(tomorrow);
+  });
+
+  it('updates the current queue when an item is marked in Anki', async () => {
+    const result = await regenerateTodayQueue();
+    const item = result.items[0];
+    const db = getDB();
+
+    const updated = await setQueueItemAnkiStatus(item.id, 'created');
+    const storedItem = await db.content_items.get(item.id);
+    const storedQueueItem = updated.queue.items.find(queueItem => queueItem.content_id === item.id);
+
+    expect(storedItem?.anki_status).toBe('created');
+    expect(storedQueueItem?.status).toBe('created');
+    expect(updated.queue.completed_count).toBe(1);
   });
 
   it('allows a skipped item to be selected again in a future queue', async () => {

@@ -4,7 +4,9 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ContentItem, DailyQueue, ContentType } from '../lib/types';
 import { 
   getOrCreateTodayQueue, 
-  markQueueItemCreated, 
+  getQueueForDate,
+  getAvailableQueueDates,
+  setQueueItemAnkiStatus,
   skipQueueItem,
   getFormattedDate,
   getTodayDateString 
@@ -23,7 +25,9 @@ import {
   ArrowUpRight,
   RefreshCw,
   Info,
-  ListOrdered
+  ListOrdered,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -35,27 +39,44 @@ export default function TodayPage() {
   const [isAuditing, setIsAuditing] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [todayIso, setTodayIso] = useState(() => getTodayDateString());
+  const [selectedDate, setSelectedDate] = useState(() => getTodayDateString());
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
   const loadRequestRef = useRef(0);
+  const selectedDateRef = useRef(selectedDate);
   
   // Modals state
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isEncounterOpen, setIsEncounterOpen] = useState(false);
 
-  const formattedToday = getFormattedDate(todayIso);
+  const isViewingToday = selectedDate === todayIso;
+  const formattedSelectedDate = getFormattedDate(selectedDate);
 
-  const loadQueue = useCallback(async () => {
+  const refreshAvailableDates = useCallback(async () => {
+    try {
+      setAvailableDates(await getAvailableQueueDates());
+    } catch (err) {
+      console.error('Failed to load available queue dates:', err);
+    }
+  }, []);
+
+  const loadQueue = useCallback(async (targetDate: string) => {
     const requestId = ++loadRequestRef.current;
     setLoading(true);
     try {
-      const res = await getOrCreateTodayQueue();
+      const res = targetDate === getTodayDateString()
+        ? await getOrCreateTodayQueue()
+        : await getQueueForDate(targetDate);
 
       // Do not let a slower request from the previous date overwrite a newer
       // queue after midnight or when the tab returns from the background.
       if (requestId !== loadRequestRef.current) return;
 
-      setQueue(res.queue);
-      setItems(res.items);
+      setQueue(res?.queue || null);
+      setItems(res?.items || []);
+      const dates = await getAvailableQueueDates();
+      if (requestId !== loadRequestRef.current) return;
+      setAvailableDates(dates);
     } catch (err) {
       if (requestId !== loadRequestRef.current) return;
       console.error('Failed to load today queue:', err);
@@ -67,16 +88,29 @@ export default function TodayPage() {
   }, []);
 
   useEffect(() => {
-    void loadQueue();
+    void loadQueue(selectedDateRef.current);
   }, [loadQueue]);
 
   useEffect(() => {
-    const checkForDateChange = () => {
+    const revalidateSelectedQueue = () => {
       const nextDate = getTodayDateString();
-      if (nextDate === todayIso) return;
+      const currentSelectedDate = selectedDateRef.current;
 
-      setTodayIso(nextDate);
-      void loadQueue();
+      if (nextDate !== todayIso) {
+        setTodayIso(nextDate);
+        void refreshAvailableDates();
+
+        // If the user was on Today, follow the calendar rollover. If they
+        // were inspecting history, keep their selected historical date.
+        if (currentSelectedDate === todayIso) {
+          selectedDateRef.current = nextDate;
+          setSelectedDate(nextDate);
+          void loadQueue(nextDate);
+        }
+        return;
+      }
+
+      void loadQueue(currentSelectedDate);
     };
 
     const now = new Date();
@@ -86,54 +120,96 @@ export default function TodayPage() {
       1000,
       nextMidnight.getTime() - now.getTime() + 100
     );
-    const rolloverTimer = window.setTimeout(checkForDateChange, delayUntilMidnight);
+    const rolloverTimer = window.setTimeout(revalidateSelectedQueue, delayUntilMidnight);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        checkForDateChange();
+        revalidateSelectedQueue();
       }
     };
 
-    window.addEventListener('focus', checkForDateChange);
+    window.addEventListener('focus', revalidateSelectedQueue);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.clearTimeout(rolloverTimer);
-      window.removeEventListener('focus', checkForDateChange);
+      window.removeEventListener('focus', revalidateSelectedQueue);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [todayIso, loadQueue]);
+  }, [todayIso, loadQueue, refreshAvailableDates]);
+
+  const handleDateSelection = (date: string) => {
+    if (date !== todayIso && !availableDates.includes(date)) return;
+
+    selectedDateRef.current = date;
+    setSelectedDate(date);
+    setActiveTypeFilter('all');
+    setIsAuditing(false);
+    setSelectedItem(null);
+    setIsDetailOpen(false);
+    setIsEncounterOpen(false);
+    void loadQueue(date);
+  };
+
+  const navigableDates = availableDates
+    .filter(date => date <= todayIso)
+    .sort();
+  const selectedDateIndex = navigableDates.indexOf(selectedDate);
+  const previousDate = selectedDateIndex > 0 ? navigableDates[selectedDateIndex - 1] : null;
+  const nextDate = selectedDateIndex >= 0 && selectedDateIndex < navigableDates.length - 1
+    ? navigableDates[selectedDateIndex + 1]
+    : null;
+
+  const handlePreviousDate = () => {
+    if (previousDate) handleDateSelection(previousDate);
+  };
+
+  const handleNextDate = () => {
+    if (nextDate) handleDateSelection(nextDate);
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await loadQueue();
+      await loadQueue(selectedDateRef.current);
     } finally {
       setIsRefreshing(false);
     }
   };
 
-  const handleMarkCreated = async (item: ContentItem) => {
+  const handleToggleAnki = async (item: ContentItem): Promise<ContentItem> => {
+    if (!isViewingToday) return item;
+
+    const nextStatus = item.anki_status === 'created' ? 'not_created' : 'created';
     try {
-      const res = await markQueueItemCreated(item.id);
+      const res = await setQueueItemAnkiStatus(item.id, nextStatus, selectedDateRef.current);
       setQueue(res.queue);
       setItems(res.items);
 
-      if (res.queue.completed_count === res.queue.target_count && res.queue.target_count > 0) {
+      if (
+        nextStatus === 'created' &&
+        res.queue.completed_count === res.queue.target_count &&
+        res.queue.target_count > 0
+      ) {
         confetti({
           particleCount: 80,
           spread: 80,
           origin: { y: 0.6 }
         });
       }
+
+      return res.items.find(updated => updated.id === item.id) || item;
     } catch (err) {
-      console.error('Failed to mark item created:', err);
+      console.error('Failed to update Anki status:', err);
+      throw err;
     }
   };
 
   const handleSkip = async (item: ContentItem) => {
+    if (!isViewingToday) return;
+
     try {
-      const res = await skipQueueItem(item.id, item.type);
+      const res = await skipQueueItem(item.id, item.type, selectedDateRef.current);
       setQueue(res.queue);
       setItems(res.items);
     } catch (err) {
@@ -178,7 +254,7 @@ export default function TodayPage() {
           </div>
           <div>
             <span className="text-sm font-mono font-black text-card-lime capitalize block">
-              Hoje: {formattedToday}
+              {isViewingToday ? 'Hoje' : 'Histórico'}: {formattedSelectedDate}
             </span>
             <span className="text-xs text-slate-400 font-mono flex items-center gap-1">
               <ListOrdered className="w-3.5 h-3.5 text-card-lime" />
@@ -187,7 +263,40 @@ export default function TodayPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <button
+            onClick={handlePreviousDate}
+            disabled={!previousDate}
+            className="flex items-center gap-1 px-3 py-2 rounded-full bg-dark-bg hover:bg-dark-border text-slate-300 text-xs font-mono font-bold border border-dark-border transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Ver a fila anterior"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            Anterior
+          </button>
+
+          <select
+            value={selectedDate}
+            onChange={event => handleDateSelection(event.target.value)}
+            className="max-w-[180px] px-3 py-2 rounded-full bg-dark-bg text-slate-300 text-xs font-mono font-bold border border-dark-border outline-none focus:border-card-lime"
+            aria-label="Selecionar dia"
+          >
+            {[...availableDates].sort().reverse().map(date => (
+              <option key={date} value={date}>
+                {date === todayIso ? `Hoje — ${getFormattedDate(date)}` : getFormattedDate(date)}
+              </option>
+            ))}
+          </select>
+
+          <button
+            onClick={handleNextDate}
+            disabled={!nextDate}
+            className="flex items-center gap-1 px-3 py-2 rounded-full bg-dark-bg hover:bg-dark-border text-slate-300 text-xs font-mono font-bold border border-dark-border transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title={nextDate ? 'Ver a próxima fila salva' : 'Hoje é o dia atual'}
+          >
+            Próximo
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+
           <button
             onClick={() => setIsAuditing(!isAuditing)}
             className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-dark-bg hover:bg-dark-border text-slate-300 text-xs font-mono font-bold border border-dark-border transition-colors"
@@ -213,7 +322,7 @@ export default function TodayPage() {
         <div className="p-6 bg-dark-card border-2 border-card-lime/40 rounded-[32px] text-xs font-mono space-y-4 animate-in fade-in">
           <div className="flex items-center gap-2 text-card-lime font-bold text-sm">
             <CheckCircle2 className="w-5 h-5" />
-            Sequência Canônica de Hoje ({todayIso}):
+            Sequência Canônica de {isViewingToday ? 'Hoje' : 'Histórico'} ({selectedDate}):
           </div>
           <p className="text-slate-300 font-sans text-xs leading-relaxed">
             As palavras e frases seguem rigorosamente a ordem da lista (sem sorteio aleatório).
@@ -385,6 +494,20 @@ export default function TodayPage() {
         <div className="py-20 text-center text-slate-400 font-mono text-sm">
           // Carregando conteúdos de hoje na ordem da lista...
         </div>
+      ) : !queue ? (
+        <div className="bg-dark-card rounded-[32px] p-12 text-center border border-dark-border space-y-4">
+          <p className="text-slate-300 text-sm font-semibold">
+            Não existe uma fila salva para este dia.
+          </p>
+          {!isViewingToday && (
+            <button
+              onClick={() => handleDateSelection(todayIso)}
+              className="px-6 py-3 bg-card-lime text-dark-bg rounded-full text-xs font-black shadow-lg"
+            >
+              Voltar para Hoje
+            </button>
+          )}
+        </div>
       ) : filteredItems.length === 0 ? (
         <div className="bg-dark-card rounded-[32px] p-12 text-center border border-dark-border space-y-4">
           <p className="text-slate-300 text-sm font-semibold">
@@ -404,17 +527,17 @@ export default function TodayPage() {
               key={item.id}
               item={item}
               index={idx + 1}
-              isInDailyQueue={true}
-              onMarkCreated={handleMarkCreated}
-              onSkip={handleSkip}
+              isInDailyQueue={isViewingToday}
+              onMarkCreated={isViewingToday ? handleToggleAnki : undefined}
+              onSkip={isViewingToday ? handleSkip : undefined}
               onViewDetails={(it) => {
                 setSelectedItem(it);
                 setIsDetailOpen(true);
               }}
-              onAddEncounter={(it) => {
+              onAddEncounter={isViewingToday ? (it) => {
                 setSelectedItem(it);
                 setIsEncounterOpen(true);
-              }}
+              } : undefined}
             />
           ))}
         </div>
@@ -426,10 +549,12 @@ export default function TodayPage() {
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
         onItemUpdated={handleItemUpdated}
-        onOpenEncounterModal={(it) => {
+        onOpenEncounterModal={isViewingToday ? (it) => {
           setSelectedItem(it);
           setIsEncounterOpen(true);
-        }}
+        } : undefined}
+        onToggleAnki={isViewingToday ? handleToggleAnki : undefined}
+        readOnly={!isViewingToday}
         queueItems={filteredItems}
         onSelectNextItem={(next) => setSelectedItem(next)}
       />

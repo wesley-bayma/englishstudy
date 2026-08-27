@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ContentItem, Encounter, StudySheet } from '../lib/types';
-import { getItemEncounters, toggleAnkiStatus } from '../lib/db';
+import { getItemEncounters } from '../lib/db';
 import { getStudySheetWithGemini } from '../lib/gemini';
 import { StudySheetView } from './StudySheetView';
 import { 
@@ -23,7 +23,9 @@ interface ItemDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onItemUpdated: (item: ContentItem) => void;
-  onOpenEncounterModal: (item: ContentItem) => void;
+  onOpenEncounterModal?: (item: ContentItem) => void;
+  onToggleAnki?: (item: ContentItem) => Promise<ContentItem>;
+  readOnly?: boolean;
   queueItems?: ContentItem[];
   onSelectNextItem?: (nextItem: ContentItem) => void;
 }
@@ -34,6 +36,8 @@ export function ItemDetailModal({
   onClose,
   onItemUpdated,
   onOpenEncounterModal,
+  onToggleAnki,
+  readOnly = false,
   queueItems = [],
   onSelectNextItem
 }: ItemDetailModalProps) {
@@ -73,17 +77,14 @@ export function ItemDetailModal({
   };
 
   const handleToggleAnki = async () => {
+    if (readOnly || !onToggleAnki) return;
+
     try {
-      const newStatus = await toggleAnkiStatus(item.id);
-      const updated = { 
-        ...item, 
-        anki_status: newStatus, 
-        anki_created_at: newStatus === 'created' ? new Date().toISOString() : null 
-      };
+      const updated = await onToggleAnki(item);
       onItemUpdated(updated);
 
       // AUTO-ADVANCE: If marking as created and there are next items, automatically advance!
-      if (newStatus === 'created' && onSelectNextItem) {
+      if (updated.anki_status === 'created' && onSelectNextItem) {
         // Find next pending item first, or next item in sequence
         const nextPending = queueItems.find((qItem, idx) => idx > currentIndex && qItem.anki_status !== 'created');
         const nextItem = nextPending || (hasNext ? queueItems[currentIndex + 1] : null);
@@ -185,8 +186,9 @@ export function ItemDetailModal({
         <div className="p-6 overflow-y-auto space-y-6">
           {/* Action Row */}
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleToggleAnki}
+            {!readOnly && onToggleAnki && (
+              <button
+                onClick={handleToggleAnki}
               className={`flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl text-xs font-black transition-all shadow-lg ${
                 isCreated
                   ? 'bg-dark-border text-slate-300 hover:bg-slate-700'
@@ -204,18 +206,27 @@ export function ItemDetailModal({
                   Já criei no Anki ➔ Avançar
                 </>
               )}
-            </button>
+              </button>
+            )}
 
-            <button
-              onClick={() => {
-                onClose();
-                onOpenEncounterModal(item);
-              }}
+            {!readOnly && onOpenEncounterModal && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenEncounterModal(item);
+                }}
               className="flex items-center gap-1.5 py-3.5 px-4 rounded-2xl text-xs font-bold bg-dark-card text-rose-400 border border-rose-500/30 hover:bg-rose-500/10 transition-colors"
             >
               <Flame className="w-4 h-4 fill-rose-500 text-rose-500" />
               + Encontro
-            </button>
+              </button>
+            )}
+
+            {readOnly && (
+              <div className="w-full rounded-2xl border border-dark-border bg-dark-bg px-4 py-3 text-center text-xs font-mono text-slate-400">
+                Histórico somente para consulta
+              </div>
+            )}
           </div>
 
           {/* Full Pedagogical Study Sheet */}
