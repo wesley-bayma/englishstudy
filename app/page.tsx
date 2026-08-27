@@ -10,7 +10,10 @@ import {
   skipQueueItem,
   getFormattedDate,
   getTodayDateString,
-  getDailyCardGoal
+  getDailyCardGoal,
+  setDailyCardGoal,
+  MIN_DAILY_CARD_GOAL,
+  MAX_DAILY_CARD_GOAL
 } from '../lib/daily-queue';
 import { ContentCard } from '../components/ContentCard';
 import { ItemDetailModal } from '../components/ItemDetailModal';
@@ -42,6 +45,8 @@ export default function TodayPage() {
   const [todayIso, setTodayIso] = useState(() => getTodayDateString());
   const [selectedDate, setSelectedDate] = useState(() => getTodayDateString());
   const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [dailyCardGoal, setDailyCardGoalInput] = useState(() => String(getDailyCardGoal()));
+  const [isDailyGoalSaved, setIsDailyGoalSaved] = useState(false);
   const loadRequestRef = useRef(0);
   const selectedDateRef = useRef(selectedDate);
   
@@ -176,6 +181,14 @@ export default function TodayPage() {
     } finally {
       setIsRefreshing(false);
     }
+  };
+
+  const handleSaveDailyGoal = (event: React.FormEvent) => {
+    event.preventDefault();
+    const savedGoal = setDailyCardGoal(Number(dailyCardGoal));
+    setDailyCardGoalInput(String(savedGoal));
+    setIsDailyGoalSaved(true);
+    window.setTimeout(() => setIsDailyGoalSaved(false), 2500);
   };
 
   const handleToggleAnki = async (item: ContentItem): Promise<ContentItem> => {
@@ -316,6 +329,40 @@ export default function TodayPage() {
             {isRefreshing ? 'Atualizando...' : 'Atualizar'}
           </button>
         </div>
+      </div>
+
+      {/* Quick daily goal setting */}
+      <div className="flex items-center justify-between gap-4 flex-wrap p-4 sm:p-5 bg-dark-card border border-card-lime/30 rounded-[28px] shadow-lg">
+        <div>
+          <span className="text-xs font-mono font-black text-card-lime uppercase tracking-wider block">
+            Meta diária de cards
+          </span>
+          <p className="text-xs text-slate-400 mt-1">
+            Quantos conteúdos novos você quer receber por dia?
+          </p>
+        </div>
+
+        <form onSubmit={handleSaveDailyGoal} className="flex items-center gap-2">
+          <input
+            type="number"
+            min={MIN_DAILY_CARD_GOAL}
+            max={MAX_DAILY_CARD_GOAL}
+            value={dailyCardGoal}
+            onChange={event => setDailyCardGoalInput(event.target.value)}
+            className="w-20 px-3 py-2 rounded-xl bg-dark-bg border border-dark-border text-white text-sm font-mono text-center focus:outline-none focus:border-card-lime"
+            aria-label="Quantidade de cards novos por dia"
+          />
+          <button
+            type="submit"
+            className="px-4 py-2 rounded-xl bg-card-lime text-dark-bg text-xs font-black hover:bg-card-limeDark transition-colors"
+          >
+            {isDailyGoalSaved ? 'Salvo!' : 'Salvar'}
+          </button>
+        </form>
+
+        <p className="basis-full text-[11px] text-slate-500">
+          A fila de hoje já criada permanece igual; a nova meta vale para a próxima fila.
+        </p>
       </div>
 
       {/* Audit Explanation Drawer */}
