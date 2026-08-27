@@ -1,5 +1,56 @@
-import { GeminiAnalysisResult, CardReviewResult, ContentType, StudySheet } from './types';
+import { GeminiAnalysisResult, CardReviewResult, ContentType, StudySheet, StudySheetCacheEntry } from './types';
 import { validateCanonicalCard } from './card-format';
+import { getDB } from './db';
+
+const STUDY_SHEET_CACHE_VERSION = 'v2';
+const studySheetMemoryCache = new Map<string, StudySheet>();
+const studySheetRequests = new Map<string, Promise<StudySheet | null>>();
+
+function getStudySheetCacheId(
+  term: string,
+  type: ContentType,
+  meaningPt: string,
+  contextSentence: string
+): string {
+  return `${STUDY_SHEET_CACHE_VERSION}:${encodeURIComponent(JSON.stringify([
+    term.trim(),
+    type,
+    meaningPt.trim(),
+    contextSentence.trim()
+  ]))}`;
+}
+
+async function readCachedStudySheet(cacheId: string): Promise<StudySheet | null> {
+  const memoryCached = studySheetMemoryCache.get(cacheId);
+  if (memoryCached) return memoryCached;
+
+  try {
+    const cached = await getDB().study_sheets.get(cacheId);
+    if (cached?.sheet) {
+      studySheetMemoryCache.set(cacheId, cached.sheet);
+      return cached.sheet;
+    }
+  } catch (error) {
+    console.warn('Study sheet cache read skipped:', error);
+  }
+
+  return null;
+}
+
+async function writeCachedStudySheet(cacheId: string, sheet: StudySheet): Promise<void> {
+  studySheetMemoryCache.set(cacheId, sheet);
+
+  try {
+    const entry: StudySheetCacheEntry = {
+      id: cacheId,
+      sheet,
+      updated_at: new Date().toISOString()
+    };
+    await getDB().study_sheets.put(entry);
+  } catch (error) {
+    console.warn('Study sheet cache write skipped:', error);
+  }
+}
 
 export function getStoredApiKey(): string {
   if (typeof window === 'undefined') return '';
@@ -110,30 +161,60 @@ export async function getStudySheetWithGemini(
   contextSentence: string = '',
   signal?: AbortSignal
 ): Promise<StudySheet | null> {
+  const cacheId = getStudySheetCacheId(term, type, meaningPt, contextSentence);
+  const cached = await readCachedStudySheet(cacheId);
+  if (cached) return cached;
+
+  const pendingRequest = studySheetRequests.get(cacheId);
+  if (pendingRequest) return pendingRequest;
+
   const apiKey = getStoredApiKey();
 
-  try {
-    const res = await fetch('/api/gemini/study-sheet', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        term,
-        type,
-        meaningPt,
-        contextSentence,
-        apiKey
-      }),
-      signal
-    });
+  const request = (async (): Promise<StudySheet | null> => {
+    try {
+      const res = await fetch('/api/gemini/study-sheet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          term,
+          type,
+          meaningPt,
+          contextSentence,
+          apiKey
+        }),
+        signal
+      });
 
-    if (!res.ok) {
-      throw new Error(`Study sheet API error status ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`Study sheet API error status ${res.status}`);
+      }
+
+      const data = await res.json() as StudySheet;
+      void writeCachedStudySheet(cacheId, data);
+      return data;
+    } catch (error) {
+      console.warn('Error fetching study sheet from Gemini:', error);
+      return null;
     }
+  })();
 
-    const data = await res.json();
-    return data;
-  } catch (error) {
-    console.warn('Error fetching study sheet from Gemini:', error);
-    return null;
+  studySheetRequests.set(cacheId, request);
+  try {
+    return await request;
+  } finally {
+    if (studySheetRequests.get(cacheId) === request) {
+      studySheetRequests.delete(cacheId);
+    }
   }
+}
+
+export function prefetchStudySheetWithGemini(
+  term: string,
+  type: ContentType = 'vocabulary',
+  meaningPt: string = '',
+  contextSentence: string = ''
+): void {
+  void getStudySheetWithGemini(term, type, meaningPt, contextSentence).catch(error => {
+    console.warn('Study sheet prefetch skipped:', error);
+  });
 }

@@ -1,5 +1,13 @@
 import Dexie, { Table } from 'dexie';
-import { ContentItem, Encounter, DailyQueue, ContentType, ContentSource, AnkiStatus } from './types';
+import {
+  ContentItem,
+  Encounter,
+  DailyQueue,
+  ContentType,
+  ContentSource,
+  AnkiStatus,
+  StudySheetCacheEntry
+} from './types';
 import { normalizeContent } from './normalizer';
 import seedData from '../data/seed-data.json';
 
@@ -7,6 +15,7 @@ export class EnglishHubDB extends Dexie {
   content_items!: Table<ContentItem, string>;
   encounters!: Table<Encounter, string>;
   daily_queues!: Table<DailyQueue, string>;
+  study_sheets!: Table<StudySheetCacheEntry, string>;
 
   constructor() {
     super('EnglishStudyHubDB_v2');
@@ -15,6 +24,138 @@ export class EnglishHubDB extends Dexie {
       encounters: 'id, content_id, source, created_at',
       daily_queues: 'id, date'
     });
+    this.version(2).stores({
+      content_items: 'id, normalized_content, type, source, anki_status, original_order, times_encountered, date_added',
+      encounters: 'id, content_id, source, created_at',
+      daily_queues: 'id, date',
+      study_sheets: 'id, updated_at'
+    });
+  }
+}
+
+const LEGACY_DATABASE_NAME = 'EnglishStudyHubDB';
+const LEGACY_MIGRATION_FLAG = 'english_hub_legacy_db_migrated_v1';
+
+/**
+ * The database name was bumped to v2 in a previous release. Keep the old
+ * schema available long enough to recover the user's queues and Inbox data.
+ */
+class LegacyEnglishHubDB extends Dexie {
+  content_items!: Table<ContentItem, string>;
+  encounters!: Table<Encounter, string>;
+  daily_queues!: Table<DailyQueue, string>;
+
+  constructor() {
+    super(LEGACY_DATABASE_NAME);
+    this.version(1).stores({
+      content_items: 'id, normalized_content, type, source, anki_status, original_order, times_encountered, date_added',
+      encounters: 'id, content_id, source, created_at',
+      daily_queues: 'id, date'
+    });
+  }
+}
+
+function latestIsoDate(...values: Array<string | null | undefined>): string | null {
+  const validDates = values
+    .filter((value): value is string => Boolean(value))
+    .filter(value => !Number.isNaN(new Date(value).getTime()))
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+  return validDates[0] || null;
+}
+
+function mergeLegacyContentItem(current: ContentItem, legacy: ContentItem): ContentItem {
+  const currentIsCreated = current.anki_status === 'created';
+  const legacyIsCreated = legacy.anki_status === 'created';
+
+  return {
+    ...current,
+    anki_status: currentIsCreated || legacyIsCreated ? 'created' : current.anki_status,
+    anki_created_at: currentIsCreated
+      ? (current.anki_created_at || legacy.anki_created_at)
+      : legacyIsCreated
+        ? legacy.anki_created_at
+        : current.anki_created_at,
+    times_encountered: Math.max(current.times_encountered || 0, legacy.times_encountered || 0),
+    last_encountered: latestIsoDate(current.last_encountered, legacy.last_encountered),
+    meaning_pt: current.meaning_pt || legacy.meaning_pt,
+    example: current.example || legacy.example,
+    base_form: current.base_form || legacy.base_form,
+    notes: current.notes || legacy.notes
+  };
+}
+
+function markLegacyMigrationComplete(): void {
+  try {
+    window.localStorage.setItem(LEGACY_MIGRATION_FLAG, 'done');
+  } catch {
+    // Local storage can be unavailable; the migration remains idempotent.
+  }
+}
+
+async function migrateLegacyDatabase(targetDb: EnglishHubDB): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  try {
+    if (window.localStorage.getItem(LEGACY_MIGRATION_FLAG) === 'done') return;
+  } catch {
+    // Continue without the one-time flag; all writes below are idempotent.
+  }
+
+  const legacyDb = new LegacyEnglishHubDB();
+  try {
+    await legacyDb.open();
+    const [legacyItems, legacyQueues, legacyEncounters] = await Promise.all([
+      legacyDb.content_items.toArray(),
+      legacyDb.daily_queues.toArray(),
+      legacyDb.encounters.toArray()
+    ]);
+
+    if (legacyItems.length === 0 && legacyQueues.length === 0 && legacyEncounters.length === 0) {
+      markLegacyMigrationComplete();
+      return;
+    }
+
+    const currentItems = await targetDb.content_items.toArray();
+    const currentById = new Map(currentItems.map(item => [item.id, item]));
+    const mergedItems: ContentItem[] = [];
+
+    for (const legacyItem of legacyItems) {
+      const currentItem = currentById.get(legacyItem.id);
+      if (currentItem) {
+        mergedItems.push(mergeLegacyContentItem(currentItem, legacyItem));
+      } else {
+        // Preserve user-created Inbox records that do not exist in the seed.
+        mergedItems.push(legacyItem);
+      }
+    }
+
+    const legacyQueueIds = legacyQueues.map(queue => queue.id);
+    const existingQueues = await targetDb.daily_queues.bulkGet(legacyQueueIds);
+    const queuesToImport = legacyQueues.filter((_, index) => !existingQueues[index]);
+
+    const legacyEncounterIds = legacyEncounters.map(encounter => encounter.id);
+    const existingEncounters = await targetDb.encounters.bulkGet(legacyEncounterIds);
+    const encountersToImport = legacyEncounters.filter((_, index) => !existingEncounters[index]);
+
+    await targetDb.transaction(
+      'rw',
+      targetDb.content_items,
+      targetDb.daily_queues,
+      targetDb.encounters,
+      async () => {
+        if (mergedItems.length > 0) await targetDb.content_items.bulkPut(mergedItems);
+        if (queuesToImport.length > 0) await targetDb.daily_queues.bulkPut(queuesToImport);
+        if (encountersToImport.length > 0) await targetDb.encounters.bulkPut(encountersToImport);
+      }
+    );
+
+    markLegacyMigrationComplete();
+    console.info(`Legacy database migrated: ${queuesToImport.length} queues recovered.`);
+  } catch (error) {
+    console.warn('Legacy database migration skipped:', error);
+  } finally {
+    legacyDb.close();
   }
 }
 
@@ -41,6 +182,8 @@ export async function initDatabase(): Promise<number> {
   try {
     const count = await db.content_items.count();
 
+    let initializedCount = count;
+
     if (count === 0) {
       console.log('Seeding canonical dataset v2 (3,250 items)...');
 
@@ -59,9 +202,11 @@ export async function initDatabase(): Promise<number> {
         await db.content_items.bulkPut(chunk);
       }
       console.log('Seeding complete! 3,250 clean canonical items ready.');
-      return formattedSeeds.length;
+      initializedCount = formattedSeeds.length;
     }
-    return count;
+
+    await migrateLegacyDatabase(db);
+    return initializedCount;
   } catch (error) {
     console.error('Error initializing database:', error);
     return 0;

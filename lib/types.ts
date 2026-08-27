@@ -145,6 +145,12 @@ export interface StudySheet {
   tip_warning: string;
 }
 
+export interface StudySheetCacheEntry {
+  id: string;
+  sheet: StudySheet;
+  updated_at: string;
+}
+
 
 export interface VerificationResult {
   exact_match: ContentItem | null;

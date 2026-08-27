@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ContentItem, Encounter, StudySheet } from '../lib/types';
 import { getItemEncounters } from '../lib/db';
-import { getStudySheetWithGemini } from '../lib/gemini';
+import { getStudySheetWithGemini, prefetchStudySheetWithGemini } from '../lib/gemini';
 import { StudySheetView } from './StudySheetView';
 import { 
   X, 
@@ -54,6 +54,27 @@ export function ItemDetailModal({
     let isActive = true;
     const controller = new AbortController();
 
+    if (!readOnly && queueItems.length > 1) {
+      const currentQueueIndex = queueItems.findIndex(queueItem => queueItem.id === item.id);
+      const nextPendingItem = queueItems.find((queueItem, index) => (
+        index > currentQueueIndex && queueItem.anki_status !== 'created'
+      ));
+      const nextQueueItem = nextPendingItem || (
+        currentQueueIndex >= 0 && currentQueueIndex < queueItems.length - 1
+          ? queueItems[currentQueueIndex + 1]
+          : null
+      );
+
+      if (nextQueueItem) {
+        prefetchStudySheetWithGemini(
+          nextQueueItem.content,
+          nextQueueItem.type,
+          nextQueueItem.meaning_pt || '',
+          nextQueueItem.example || ''
+        );
+      }
+    }
+
     getItemEncounters(item.id).then(result => {
       if (isActive) setEncounters(result);
     });
@@ -85,7 +106,7 @@ export function ItemDetailModal({
         autoAdvanceTimerRef.current = null;
       }
     };
-  }, [isOpen, item?.id, item?.content, item?.type, item?.meaning_pt, item?.example]);
+  }, [isOpen, item?.id, item?.content, item?.type, item?.meaning_pt, item?.example, readOnly]);
 
   if (!isOpen || !item) return null;
 
@@ -119,6 +140,12 @@ export function ItemDetailModal({
         const nextItem = nextPending || (hasNext ? queueItems[currentIndex + 1] : null);
 
         if (nextItem) {
+          prefetchStudySheetWithGemini(
+            nextItem.content,
+            nextItem.type,
+            nextItem.meaning_pt || '',
+            nextItem.example || ''
+          );
           setAutoAdvanceFeedback(`Salvo no Anki! Avançando para "${nextItem.content}"...`);
           autoAdvanceTimerRef.current = window.setTimeout(() => {
             autoAdvanceTimerRef.current = null;
