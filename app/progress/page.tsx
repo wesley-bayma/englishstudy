@@ -139,6 +139,9 @@ export default function ProgressPage() {
   const vocabPercent = Math.round((stats.base.vocab.created / stats.base.vocab.total) * 100) || 0;
   const phrasePercent = Math.round((stats.base.phrases.created / stats.base.phrases.total) * 100) || 0;
   const pvPercent = Math.round((stats.base.phrasal_verbs.created / stats.base.phrasal_verbs.total) * 100) || 0;
+  const canonicalBaseTotal =
+    stats.base.vocab.total + stats.base.phrases.total + stats.base.phrasal_verbs.total;
+  const formattedCanonicalBaseTotal = canonicalBaseTotal.toLocaleString('pt-BR');
 
   return (
     <div className="space-y-8 pt-4">
@@ -151,7 +154,7 @@ export default function ProgressPage() {
           Progresso de Conversão
         </h1>
         <p className="text-xs sm:text-sm text-slate-400 font-medium">
-          Acompanhamento dos 3.250 conteúdos canônicos e novos achados transformados em cards no Anki.
+          Acompanhamento dos conteúdos canônicos e novos achados transformados em cards no Anki.
         </p>
       </div>
 
@@ -162,7 +165,7 @@ export default function ProgressPage() {
             <Layers className="w-5 h-5 text-card-lime" />
             Banco Principal (BASE)
           </h2>
-          <span className="text-xs font-mono text-slate-400">3.250 itens originais</span>
+          <span className="text-xs font-mono text-slate-400">{formattedCanonicalBaseTotal} itens originais</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">

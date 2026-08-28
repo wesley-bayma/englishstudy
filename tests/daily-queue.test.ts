@@ -74,7 +74,7 @@ describe('daily queue scheduling', () => {
     await getDB().delete();
   });
 
-  it('does not deliver yesterday\'s pending or created items again today', async () => {
+  it('carries yesterday\'s pending item forward but excludes the created item', async () => {
     const today = getTodayDateString();
     const yesterday = shiftDate(today, -1);
     const db = getDB();
@@ -88,12 +88,27 @@ describe('daily queue scheduling', () => {
     const result = await regenerateTodayQueue();
     const ids = result.items.map(item => item.id);
 
-    expect(ids).not.toContain('base_vocab_1');
+    expect(ids).toContain('base_vocab_1');
     expect(ids).not.toContain('base_vocab_2');
     expect((await db.content_items.get('base_vocab_1'))?.anki_status).toBe('not_created');
   });
 
-  it('repairs a current queue that contains an item from a previous day', async () => {
+  it('keeps a pending carryover item when today\'s queue is loaded again', async () => {
+    const today = getTodayDateString();
+    const yesterday = shiftDate(today, -1);
+    const db = getDB();
+
+    await db.daily_queues.put(queueFor(yesterday, ['base_vocab_1']));
+
+    const firstLoad = await getOrCreateTodayQueue();
+    const secondLoad = await getOrCreateTodayQueue();
+
+    expect(firstLoad.items.map(item => item.id)).toContain('base_vocab_1');
+    expect(secondLoad.items.map(item => item.id)).toContain('base_vocab_1');
+    expect(secondLoad.queue.items.map(item => item.content_id)).toContain('base_vocab_1');
+  });
+
+  it('preserves a pending carryover already present in today\'s queue', async () => {
     const today = getTodayDateString();
     const yesterday = shiftDate(today, -1);
     const db = getDB();
@@ -105,8 +120,8 @@ describe('daily queue scheduling', () => {
     const ids = result.items.map(item => item.id);
 
     expect(result.queue.id).toBe(`queue_${today}`);
-    expect(ids).not.toContain('base_vocab_1');
-    expect(result.queue.target_count).toBe(10);
+    expect(ids).toContain('base_vocab_1');
+    expect(result.queue.target_count).toBe(2);
   });
 
   it('repairs a created item from yesterday even when its old queue is missing', async () => {

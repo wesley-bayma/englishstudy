@@ -105,6 +105,6 @@ const pvCount = seedData.filter(i => i.type === 'phrasal_verb').length;
 console.log(`- Vocabularies: ${vocabCount} / 3000 -> ${vocabCount === 3000 ? 'PASSED ✅' : 'FAILED ❌'}`);
 console.log(`- Phrases: ${phrasesCount} / 100 -> ${phrasesCount === 100 ? 'PASSED ✅' : 'FAILED ❌'}`);
 console.log(`- Phrasal Verbs: ${pvCount} / 150 -> ${pvCount === 150 ? 'PASSED ✅' : 'FAILED ❌'}`);
-console.log(`- Total: ${seedData.length} / 3250 -> ${seedData.length === 3250 ? 'PASSED ✅' : 'FAILED ❌'}`);
+console.log(`- Total: ${seedData.length} / 10311 -> ${seedData.length === 10311 ? 'PASSED ✅' : 'FAILED ❌'}`);
 
 console.log('\n=== ALL VERIFICATION TESTS COMPLETED ===');

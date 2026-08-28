@@ -35,7 +35,7 @@ export class EnglishHubDB extends Dexie {
 
 const LEGACY_DATABASE_NAME = 'EnglishStudyHubDB';
 const LEGACY_MIGRATION_FLAG = 'english_hub_legacy_db_migrated_v1';
-const CANONICAL_DATASET_VERSION = 'v3-10000';
+const CANONICAL_DATASET_VERSION = 'v4-fresh-start';
 const CANONICAL_DATASET_VERSION_KEY = 'english_hub_dataset_version';
 
 /**
@@ -162,11 +162,11 @@ async function migrateLegacyDatabase(targetDb: EnglishHubDB): Promise<void> {
 }
 
 /**
- * The canonical dataset changes the meaning of the daily sequence. Clear only
- * generated daily queues and cached sheets once, preserving content, Inbox
- * records, encounters, and Anki statuses.
+ * The canonical dataset now starts a fresh study count. Clear generated daily
+ * history and base progress once, preserving the canonical content itself and
+ * all user-created Inbox records.
  */
-async function resetHistoryForDatasetVersion(targetDb: EnglishHubDB): Promise<void> {
+async function resetStudyProgressForDatasetVersion(targetDb: EnglishHubDB): Promise<void> {
   if (typeof window === 'undefined') return;
 
   try {
@@ -179,10 +179,31 @@ async function resetHistoryForDatasetVersion(targetDb: EnglishHubDB): Promise<vo
     return;
   }
 
-  await targetDb.transaction('rw', targetDb.daily_queues, targetDb.study_sheets, async () => {
-    await targetDb.daily_queues.clear();
-    await targetDb.study_sheets.clear();
-  });
+  const baseItems = await targetDb.content_items.where('source').equals('base').toArray();
+  const baseIds = new Set(baseItems.map(item => item.id));
+  const baseEncounterIds = (await targetDb.encounters.toArray())
+    .filter(encounter => baseIds.has(encounter.content_id))
+    .map(encounter => encounter.id);
+
+  await targetDb.transaction(
+    'rw',
+    targetDb.content_items,
+    targetDb.encounters,
+    targetDb.daily_queues,
+    targetDb.study_sheets,
+    async () => {
+      await targetDb.content_items.bulkPut(baseItems.map(item => ({
+        ...item,
+        anki_status: 'not_created' as const,
+        anki_created_at: null,
+        times_encountered: 0,
+        last_encountered: null
+      })));
+      if (baseEncounterIds.length > 0) await targetDb.encounters.bulkDelete(baseEncounterIds);
+      await targetDb.daily_queues.clear();
+      await targetDb.study_sheets.clear();
+    }
+  );
 
   try {
     window.localStorage.setItem(CANONICAL_DATASET_VERSION_KEY, CANONICAL_DATASET_VERSION);
@@ -190,7 +211,7 @@ async function resetHistoryForDatasetVersion(targetDb: EnglishHubDB): Promise<vo
     // The reset already happened; leave the app usable if persistence is blocked.
   }
 
-  console.info('Daily history reset for canonical 10,000-word dataset.');
+  console.info('Study progress reset for canonical 10,000-word dataset.');
 }
 
 let dbInstance: EnglishHubDB | null = null;
@@ -228,7 +249,7 @@ async function initializeDatabase(): Promise<number> {
     let initializedCount = count;
 
     if (count === 0) {
-      console.log('Seeding canonical dataset v3 (10,311 items)...');
+      console.log('Seeding canonical dataset v4 (10,311 items)...');
 
       // Chunked insert for efficiency
       const chunkSize = 5000;
@@ -254,7 +275,7 @@ async function initializeDatabase(): Promise<number> {
     }
 
     await migrateLegacyDatabase(db);
-    await resetHistoryForDatasetVersion(db);
+    await resetStudyProgressForDatasetVersion(db);
     return initializedCount;
   } catch (error) {
     console.error('Error initializing database:', error);
@@ -325,6 +346,7 @@ export async function searchContentItems(options: {
   offset?: number;
 }): Promise<{ items: ContentItem[]; total: number }> {
   const db = getDB();
+  await initDatabase();
   const {
     query = '',
     sourceFilter = 'all',
@@ -523,6 +545,7 @@ export async function getItemEncounters(contentId: string): Promise<Encounter[]>
  */
 export async function getStudyHubStats() {
   const db = getDB();
+  await initDatabase();
   const items = await db.content_items.toArray();
   const encounters = await db.encounters.toArray();
 

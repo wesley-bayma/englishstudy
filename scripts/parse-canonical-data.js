@@ -136,7 +136,7 @@ for (let i = 1; i <= 150; i++) {
 }
 
 const allItems = [...vocabItems, ...phraseItems, ...pvItems];
-console.log(`Total canonical items generated: ${allItems.length} (Expected 3250)`);
+console.log(`Total canonical items generated: ${allItems.length} (Expected 10311)`);
 
 console.log('\n--- VERIFICATION OF FIRST 10 ITEMS (DAY 1) ---');
 console.log('5 Vocabularies:', vocabItems.slice(0, 5).map(v => `#${v.original_order} ${v.content}`));

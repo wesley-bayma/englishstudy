@@ -168,7 +168,7 @@ export default function BankPage() {
                   : 'bg-dark-bg text-slate-400 hover:text-white border border-dark-border'
               }`}
             >
-              Base (3.250)
+              Base (10.311)
             </button>
 
             <button

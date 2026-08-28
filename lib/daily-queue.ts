@@ -100,6 +100,42 @@ async function getPreviouslyScheduledItemIds(targetDate: string): Promise<Set<st
   return scheduledIds;
 }
 
+/**
+ * Carries every canonical item from an earlier queue that still is not in Anki
+ * into the next queue. Inbox items remain one-time discoveries. The oldest
+ * pending items come first, so a missed day is never silently replaced.
+ */
+async function getPendingCarryoverItems(targetDate: string): Promise<ContentItem[]> {
+  assertDateString(targetDate);
+
+  const db = getDB();
+  const previousQueues = await db.daily_queues
+    .where('date')
+    .below(targetDate)
+    .sortBy('date');
+  const pendingIds: string[] = [];
+  const seenIds = new Set<string>();
+
+  for (const previousQueue of previousQueues) {
+    for (const queueItem of previousQueue.items || []) {
+      if (queueItem.status === 'skipped' || seenIds.has(queueItem.content_id)) continue;
+      seenIds.add(queueItem.content_id);
+      pendingIds.push(queueItem.content_id);
+    }
+  }
+
+  if (pendingIds.length === 0) return [];
+
+  const contentItems = await db.content_items.where('id').anyOf(pendingIds).toArray();
+  const itemById = new Map(contentItems.map(item => [item.id, item]));
+
+  return pendingIds
+    .map(contentId => itemById.get(contentId))
+    .filter((item): item is ContentItem => (
+      item !== undefined && item.source === 'base' && item.anki_status !== 'created'
+    ));
+}
+
 async function hydrateQueue(queue: DailyQueue): Promise<QueueResult> {
   const db = getDB();
   const queueItems = queue.items || [];
@@ -240,7 +276,15 @@ async function createQueueForDate(
   await initDatabase();
 
   const excludeIds = await getPreviouslyScheduledItemIds(dateStr);
-  const allSelected = await selectDailyItems(totalTarget, excludeIds);
+  const carryoverItems = await getPendingCarryoverItems(dateStr);
+  carryoverItems.forEach(item => excludeIds.add(item.id));
+
+  const safeTarget = normalizeDailyCardGoal(totalTarget);
+  const newItems = await selectDailyItems(
+    Math.max(0, safeTarget - carryoverItems.length),
+    excludeIds
+  );
+  const allSelected = [...carryoverItems, ...newItems];
   const queueItems: DailyQueueItem[] = allSelected.map(item => ({
     content_id: item.id,
     type: item.type,
@@ -380,7 +424,6 @@ export async function getOrCreateTodayQueue(
     if (
       seenIds.has(queueItem.content_id) ||
       !contentItem ||
-      previouslyScheduledIds.has(queueItem.content_id) ||
       (contentItem.anki_status === 'created' && createdDate !== null && createdDate < todayStr)
     ) {
       invalidIds.add(queueItem.content_id);
