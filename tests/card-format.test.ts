@@ -19,7 +19,7 @@ describe('canonical Anki card format', () => {
   it('mirrors a vocabulary target and includes the sentence translation and IPA on the back', () => {
     expect(buildCanonicalCard(sheet({}))).toEqual({
       front: 'I like (maçã).',
-      back: 'I like (apple).\n/ˈæpəl/\nEu gosto de maçã.'
+      back: 'I like apple.\n/ˈæpəl/\nEu gosto de maçã.'
     });
   });
 
@@ -31,7 +31,7 @@ describe('canonical Anki card format', () => {
       ]
     }))).toEqual({
       front: 'She bought an (maçã).',
-      back: 'She bought an (apple).\n/ˈæpəl/\nEla comprou uma maçã.'
+      back: 'She bought an apple.\n/ˈæpəl/\nEla comprou uma maçã.'
     });
   });
 
@@ -69,7 +69,7 @@ describe('canonical Anki card format', () => {
       examples: [{ en: 'I need to find out the truth.', pt: 'Preciso descobrir a verdade.' }]
     }))).toEqual({
       front: 'I need to (PV: descobrir) the truth.',
-      back: 'I need to (find out) the truth.\n/faɪnd aʊt/\nPreciso descobrir a verdade.'
+      back: 'I need to find out the truth.\n/faɪnd aʊt/\nPreciso descobrir a verdade.'
     });
   });
 

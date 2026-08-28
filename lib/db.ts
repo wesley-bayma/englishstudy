@@ -95,11 +95,11 @@ function markLegacyMigrationComplete(): void {
   }
 }
 
-async function migrateLegacyDatabase(targetDb: EnglishHubDB): Promise<void> {
-  if (typeof window === 'undefined') return;
+async function migrateLegacyDatabase(targetDb: EnglishHubDB): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
 
   try {
-    if (window.localStorage.getItem(LEGACY_MIGRATION_FLAG) === 'done') return;
+    if (window.localStorage.getItem(LEGACY_MIGRATION_FLAG) === 'done') return false;
   } catch {
     // Continue without the one-time flag; all writes below are idempotent.
   }
@@ -115,7 +115,7 @@ async function migrateLegacyDatabase(targetDb: EnglishHubDB): Promise<void> {
 
     if (legacyItems.length === 0 && legacyQueues.length === 0 && legacyEncounters.length === 0) {
       markLegacyMigrationComplete();
-      return;
+      return false;
     }
 
     const currentItems = await targetDb.content_items.toArray();
@@ -154,8 +154,10 @@ async function migrateLegacyDatabase(targetDb: EnglishHubDB): Promise<void> {
 
     markLegacyMigrationComplete();
     console.info(`Legacy database migrated: ${queuesToImport.length} queues recovered.`);
+    return true;
   } catch (error) {
     console.warn('Legacy database migration skipped:', error);
+    return false;
   } finally {
     legacyDb.close();
   }
@@ -274,8 +276,10 @@ async function initializeDatabase(): Promise<number> {
       initializedCount = count + missingSeeds.length;
     }
 
-    await migrateLegacyDatabase(db);
-    await resetStudyProgressForDatasetVersion(db);
+    const migratedLegacyData = await migrateLegacyDatabase(db);
+    if (count > 0 || migratedLegacyData) {
+      await resetStudyProgressForDatasetVersion(db);
+    }
     return initializedCount;
   } catch (error) {
     console.error('Error initializing database:', error);

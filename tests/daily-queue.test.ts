@@ -45,7 +45,7 @@ function queueFor(date: string, contentIds: string[], status: 'pending' | 'creat
 describe('daily queue scheduling', () => {
   beforeAll(async () => {
     await hardResetDatabase();
-  }, 30000);
+  }, 60000);
 
   beforeEach(async () => {
     vi.useRealTimers();

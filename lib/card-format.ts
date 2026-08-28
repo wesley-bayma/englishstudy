@@ -78,7 +78,7 @@ export function buildCanonicalCard(sheet: StudySheet): CanonicalCard | null {
     ? `(PV: ${meaning})`
     : `(${meaning})`;
   const frontSentence = replaceTerm(example.en, sheet.term, frontTarget);
-  const backSentence = replaceTerm(example.en, sheet.term, `(${sheet.term.trim()})`);
+  const backSentence = replaceTerm(example.en, sheet.term, sheet.term.trim());
 
   if (!frontSentence || !backSentence) return null;
 
@@ -115,7 +115,9 @@ export function validateCanonicalCard(
     if (!back.match(/\/[^/\n]+\//)) issues.push('Inclua o IPA no verso.');
   } else {
     if (!front.match(/\([^()]+\)/)) issues.push('A frente precisa conter uma única pista entre parênteses.');
-    if (!back.match(/\([^()]+\)/)) issues.push('O verso precisa conter o termo em inglês entre parênteses.');
+    if (backLines[0]?.match(/\([^()]+\)/)) {
+      issues.push('A frase em inglês do verso não deve conter o termo entre parênteses.');
+    }
     if (backLines.length < 3) issues.push('Inclua a tradução da frase e o IPA no verso.');
     if (backLines.length >= 3 && !backLines[1].match(/\/[^\/\n]+\//)) {
       issues.push('O IPA deve ser a segunda linha do verso.');
@@ -123,11 +125,6 @@ export function validateCanonicalCard(
     if (!back.match(/\/[^/\n]+\//)) issues.push('Inclua o IPA no verso.');
     if (isPv && !front.includes('PV:')) issues.push('A frente do phrasal verb deve indicar o sentido com “PV:”.');
 
-    const frontSentence = front.split(/\r?\n/)[0].replace(/\([^()]+\)/, '(___)').trim();
-    const backSentence = back.split(/\r?\n/)[0].replace(/\([^()]+\)/, '(___)').trim();
-    if (frontSentence && backSentence && frontSentence !== backSentence) {
-      issues.push('Frente e verso devem usar a mesma frase, mudando apenas o alvo entre parênteses.');
-    }
   }
 
   return issues.slice(0, 3);

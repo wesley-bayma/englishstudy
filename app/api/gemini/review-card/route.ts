@@ -86,9 +86,9 @@ REGRAS CANÔNICAS DE AVALIAÇÃO:
 7. O verso pode conter somente a pronúncia IPA como metadado; não exija nem escreva um rótulo de áudio.
 
 PADRÕES ESPERADOS PELO USUÁRIO:
-- Vocabulário: Frente "I bought an (maçã)." -> Verso "I bought an (apple).\n/ˈæpəl/"
+- Vocabulário: Frente "I bought an (maçã)." -> Verso "I bought an apple.\n/ˈæpəl/"
 - Frase: Frente "Could you speak (_____)?\nVocê poderia falar mais devagar?" -> Verso "Could you speak more slowly?\n/kʊd juː spiːk mɔːr ˈsloʊ.li/"
-- Phrasal Verb: Frente "I need to (PV: descobrir) the truth." -> Verso "I need to (find out) the truth.\n/faɪnd aʊt/"
+- Phrasal Verb: Frente "I need to (PV: descobrir) the truth." -> Verso "I need to find out the truth.\n/faɪnd aʊt/"
 
 Avalie o card segundo essas regras e retorne no máximo 3 observações concisas e diretas (sem textos longos!). Responda ESTRITAMENTE em JSON.`;
 
