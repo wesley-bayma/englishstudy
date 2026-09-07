@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { ContentType, CardReviewResult } from '../../lib/types';
-import { reviewCardWithGemini } from '../../lib/gemini';
+import { reviewCardWithOpenRouter } from '../../lib/openrouter';
 import { 
   CheckSquare, 
   Sparkles, 
@@ -30,7 +30,7 @@ export default function ReviewerPage() {
     setResult(null);
 
     try {
-      const res = await reviewCardWithGemini(front.trim(), back.trim(), type);
+      const res = await reviewCardWithOpenRouter(front.trim(), back.trim(), type);
       setResult(res);
     } catch (err) {
       console.error('Failed to review card:', err);
@@ -169,7 +169,7 @@ export default function ReviewerPage() {
             {isReviewing ? (
               <>
                 <Sparkles className="w-4 h-4 animate-spin" />
-                Avaliando com Gemini Flash...
+                Avaliando com OpenRouter...
               </>
             ) : (
               <>

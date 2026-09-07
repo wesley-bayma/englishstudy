@@ -65,7 +65,7 @@ export interface DailyQueue {
   target_count: number;
 }
 
-export interface GeminiAnalysisResult {
+export interface AIAnalysisResult {
   classification: ContentType;
   base_form: string | null;
   has_possible_match: boolean;
@@ -86,7 +86,7 @@ export interface CardReviewResult {
 }
 
 export interface AppSettings {
-  gemini_api_key: string;
+  openrouter_api_key: string;
   daily_card_goal: number;
   daily_vocab_goal: number;
   daily_phrase_goal: number;
@@ -155,7 +155,7 @@ export interface StudySheetCacheEntry {
 export interface VerificationResult {
   exact_match: ContentItem | null;
   heuristic_match: ContentItem | null;
-  ai_match: GeminiAnalysisResult | null;
+  ai_match: AIAnalysisResult | null;
   is_duplicate: boolean;
   match_type: 'exact' | 'inflection' | 'semantic' | 'none';
   message: string;

@@ -10,7 +10,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.21.0",
     "canvas-confetti": "^1.9.3",
     "clsx": "^2.1.1",
     "dexie": "^4.0.8",

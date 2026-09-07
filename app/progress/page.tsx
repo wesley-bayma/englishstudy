@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { getStudyHubStats } from '../../lib/db';
 import { exportToJSON, exportToCSV, validateImportData, commitImport, ImportValidationReport } from '../../lib/export-import';
-import { getStoredApiKey, setStoredApiKey } from '../../lib/gemini';
+import { getStoredApiKey, setStoredApiKey } from '../../lib/openrouter';
 import {
   getDailyCardGoal,
   setDailyCardGoal,
@@ -387,11 +387,11 @@ export default function ProgressPage() {
         </form>
       </div>
 
-      {/* 6. CONFIGURAÇÕES GEMINI FLASH */}
+      {/* 6. CONFIGURAÇÕES OPENROUTER */}
       <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-4">
         <h2 className="text-xl font-black text-white flex items-center gap-2.5">
           <Key className="w-5 h-5 text-card-lime" />
-          Configuração de IA (Gemini Flash)
+          Configuração de IA (OpenRouter)
         </h2>
         <p className="text-xs text-slate-400">
           Chave armazenada localmente no seu dispositivo.
@@ -400,7 +400,7 @@ export default function ProgressPage() {
         <form onSubmit={handleSaveApiKey} className="space-y-3">
           <input
             type="password"
-            placeholder="AIzaSy..."
+            placeholder="sk-or-v1-..."
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             className="w-full px-4 py-3 rounded-2xl bg-dark-bg border border-dark-border text-white text-sm font-mono focus:outline-none focus:border-card-lime"

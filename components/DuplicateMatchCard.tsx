@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ContentItem, GeminiAnalysisResult } from '../lib/types';
+import { ContentItem, AIAnalysisResult } from '../lib/types';
 import { 
   AlertCircle, 
   Flame, 
@@ -17,7 +17,7 @@ import {
 interface DuplicateMatchCardProps {
   inputQuery: string;
   exactMatch: ContentItem | null;
-  aiMatch: GeminiAnalysisResult | null;
+  aiMatch: AIAnalysisResult | null;
   existingCandidate: ContentItem | null;
   onRegisterEncounterOnExisting: (item: ContentItem) => void;
   onAddNewAnyway: () => void;

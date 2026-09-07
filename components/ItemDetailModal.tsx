@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ContentItem, Encounter, StudySheet } from '../lib/types';
 import { getItemEncounters } from '../lib/db';
-import { getStudySheetWithGemini, prefetchStudySheetWithGemini } from '../lib/gemini';
+import { getStudySheetWithOpenRouter, prefetchStudySheetWithOpenRouter } from '../lib/openrouter';
 import { StudySheetView } from './StudySheetView';
 import { 
   X, 
@@ -66,7 +66,7 @@ export function ItemDetailModal({
       );
 
       if (nextQueueItem) {
-        prefetchStudySheetWithGemini(
+        prefetchStudySheetWithOpenRouter(
           nextQueueItem.content,
           nextQueueItem.type,
           nextQueueItem.meaning_pt || '',
@@ -81,12 +81,12 @@ export function ItemDetailModal({
     setIsLoadingSheet(true);
     setSheet(null);
     setSheetError(null);
-    getStudySheetWithGemini(item.content, item.type, item.meaning_pt || '', item.example || '', controller.signal)
+    getStudySheetWithOpenRouter(item.content, item.type, item.meaning_pt || '', item.example || '', controller.signal)
       .then(res => {
         if (!isActive) return;
         setSheet(res);
         if (!res) {
-          setSheetError('Não foi possível gerar a ficha deste item. Verifique a API do Gemini ou tente novamente.');
+      setSheetError('Não foi possível gerar a ficha deste item. Verifique a API do OpenRouter ou tente novamente.');
         }
       })
       .catch(err => {
@@ -140,7 +140,7 @@ export function ItemDetailModal({
         const nextItem = nextPending || (hasNext ? queueItems[currentIndex + 1] : null);
 
         if (nextItem) {
-          prefetchStudySheetWithGemini(
+              prefetchStudySheetWithOpenRouter(
             nextItem.content,
             nextItem.type,
             nextItem.meaning_pt || '',

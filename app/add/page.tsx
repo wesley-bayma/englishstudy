@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ContentItem, ContentType, ContentSource, GeminiAnalysisResult } from '../../lib/types';
+import { ContentItem, ContentType, ContentSource, AIAnalysisResult } from '../../lib/types';
 import { findExact, addInboxItem, getDB } from '../../lib/db';
 import { normalizeContent, getBasicLemmaCandidates } from '../../lib/normalizer';
-import { analyzeWithGemini } from '../../lib/gemini';
+import { analyzeWithOpenRouter } from '../../lib/openrouter';
 import { DuplicateMatchCard } from '../../components/DuplicateMatchCard';
 import { ItemDetailModal } from '../../components/ItemDetailModal';
 import { EncounterModal } from '../../components/EncounterModal';
@@ -34,7 +34,7 @@ export default function AddPage() {
 
   // Results
   const [exactMatch, setExactMatch] = useState<ContentItem | null>(null);
-  const [aiMatch, setAiMatch] = useState<GeminiAnalysisResult | null>(null);
+  const [aiMatch, setAiMatch] = useState<AIAnalysisResult | null>(null);
   const [candidateItem, setCandidateItem] = useState<ContentItem | null>(null);
   const [forceShowAddForm, setForceShowAddForm] = useState(false);
 
@@ -123,8 +123,8 @@ export default function AddPage() {
         }
       }
 
-      // 3. GEMINI FLASH STRUCTURED CALL
-      const aiResult = await analyzeWithGemini(clean, candidateListForAI, contextSentence);
+      // 3. OpenRouter structured call
+      const aiResult = await analyzeWithOpenRouter(clean, candidateListForAI, contextSentence);
       setAiMatch(aiResult);
 
       if (aiResult.has_possible_match && aiResult.matched_existing_content) {

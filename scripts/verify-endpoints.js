@@ -49,22 +49,22 @@ async function run() {
 
   console.log('\nTesting API Endpoints:');
   
-  // Test Gemini analyze endpoint fallback/execution
-  const analyzeRes = await testPost('/api/gemini/analyze', {
+  // Test OpenRouter analyze endpoint fallback/execution
+  const analyzeRes = await testPost('/api/openrouter/analyze', {
     query: 'running',
     candidates: ['run', 'runner'],
     context: 'I saw him running'
   });
-  console.log(`- POST /api/gemini/analyze for 'running': Status ${analyzeRes.status} ✅`);
+  console.log(`- POST /api/openrouter/analyze for 'running': Status ${analyzeRes.status} ✅`);
   console.log('  Result:', analyzeRes.body);
 
-  // Test Gemini review card endpoint fallback/execution
-  const reviewRes = await testPost('/api/gemini/review-card', {
+  // Test OpenRouter review card endpoint fallback/execution
+  const reviewRes = await testPost('/api/openrouter/review-card', {
     front: 'I forgot my (carteira) again.',
     back: 'wallet /ˈwɑː.lət/\nI forgot my wallet again.\n🔊 Áudio no verso.',
     type: 'vocabulary'
   });
-  console.log(`\n- POST /api/gemini/review-card: Status ${reviewRes.status} ✅`);
+  console.log(`\n- POST /api/openrouter/review-card: Status ${reviewRes.status} ✅`);
   console.log('  Result:', reviewRes.body);
 
   console.log('\nAll server routes and APIs verified successfully! 🚀');

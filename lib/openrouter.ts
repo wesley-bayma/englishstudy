@@ -1,8 +1,8 @@
-import { GeminiAnalysisResult, CardReviewResult, ContentType, StudySheet, StudySheetCacheEntry } from './types';
+import { AIAnalysisResult, CardReviewResult, ContentType, StudySheet, StudySheetCacheEntry } from './types';
 import { validateCanonicalCard } from './card-format';
 import { getDB } from './db';
 
-const STUDY_SHEET_CACHE_VERSION = 'v2';
+const STUDY_SHEET_CACHE_VERSION = 'v3-openrouter';
 const studySheetMemoryCache = new Map<string, StudySheet>();
 const studySheetRequests = new Map<string, Promise<StudySheet | null>>();
 
@@ -54,26 +54,26 @@ async function writeCachedStudySheet(cacheId: string, sheet: StudySheet): Promis
 
 export function getStoredApiKey(): string {
   if (typeof window === 'undefined') return '';
-  return localStorage.getItem('gemini_api_key') || '';
+  return localStorage.getItem('openrouter_api_key') || '';
 }
 
 export function setStoredApiKey(key: string): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem('gemini_api_key', key.trim());
+  localStorage.setItem('openrouter_api_key', key.trim());
 }
 
 /**
- * Call the Next.js API route to analyze query with Gemini Flash
+ * Call the Next.js API route to analyze query with OpenRouter.
  */
-export async function analyzeWithGemini(
+export async function analyzeWithOpenRouter(
   query: string,
   candidates: string[] = [],
   contextSentence: string = ''
-): Promise<GeminiAnalysisResult> {
+): Promise<AIAnalysisResult> {
   const apiKey = getStoredApiKey();
 
   try {
-    const res = await fetch('/api/gemini/analyze', {
+    const res = await fetch('/api/openrouter/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -85,13 +85,13 @@ export async function analyzeWithGemini(
     });
 
     if (!res.ok) {
-      throw new Error(`Gemini API returned status ${res.status}`);
+      throw new Error(`OpenRouter API returned status ${res.status}`);
     }
 
     const data = await res.json();
     return data;
   } catch (error) {
-    console.warn('Gemini analysis failed or offline, returning fallback:', error);
+    console.warn('OpenRouter analysis failed or offline, returning fallback:', error);
     // Graceful offline fallback
     return {
       classification: query.split(' ').length > 3 ? 'survival_phrase' : (query.includes(' ') ? 'phrasal_verb' : 'vocabulary'),
@@ -101,16 +101,16 @@ export async function analyzeWithGemini(
       similarity_type: 'none',
       confidence: 0.8,
       meaning_pt: '',
-      explanation: 'Análise offline básica (configure sua chave Gemini nas Configurações para análise avançada de variantes e lematização).',
+      explanation: 'Análise offline básica (configure sua chave OpenRouter nas Configurações para análise avançada de variantes e lematização).',
       suggested_example: contextSentence || ''
     };
   }
 }
 
 /**
- * Call the Next.js API route to review a card with Gemini Flash
+ * Call the Next.js API route to review a card with OpenRouter.
  */
-export async function reviewCardWithGemini(
+export async function reviewCardWithOpenRouter(
   front: string,
   back: string,
   type?: ContentType
@@ -118,7 +118,7 @@ export async function reviewCardWithGemini(
   const apiKey = getStoredApiKey();
 
   try {
-    const res = await fetch('/api/gemini/review-card', {
+    const res = await fetch('/api/openrouter/review-card', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -130,13 +130,13 @@ export async function reviewCardWithGemini(
     });
 
     if (!res.ok) {
-      throw new Error(`Gemini API returned status ${res.status}`);
+      throw new Error(`OpenRouter API returned status ${res.status}`);
     }
 
     const data = await res.json();
     return data;
   } catch (error) {
-    console.warn('Gemini card review failed or offline, returning fallback evaluation:', error);
+    console.warn('OpenRouter card review failed or offline, returning fallback evaluation:', error);
     
     const obs = validateCanonicalCard(front, back, type);
 
@@ -152,9 +152,9 @@ export async function reviewCardWithGemini(
 }
 
 /**
- * Fetch complete pedagogical study sheet (IPA, natural usage, examples and tips) with Gemini Flash
+ * Fetch complete pedagogical study sheet (IPA, natural usage, examples and tips) with OpenRouter.
  */
-export async function getStudySheetWithGemini(
+export async function getStudySheetWithOpenRouter(
   term: string,
   type: ContentType = 'vocabulary',
   meaningPt: string = '',
@@ -172,7 +172,7 @@ export async function getStudySheetWithGemini(
 
   const request = (async (): Promise<StudySheet | null> => {
     try {
-      const res = await fetch('/api/gemini/study-sheet', {
+      const res = await fetch('/api/openrouter/study-sheet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -193,7 +193,7 @@ export async function getStudySheetWithGemini(
       void writeCachedStudySheet(cacheId, data);
       return data;
     } catch (error) {
-      console.warn('Error fetching study sheet from Gemini:', error);
+      console.warn('Error fetching study sheet from OpenRouter:', error);
       return null;
     }
   })();
@@ -208,13 +208,13 @@ export async function getStudySheetWithGemini(
   }
 }
 
-export function prefetchStudySheetWithGemini(
+export function prefetchStudySheetWithOpenRouter(
   term: string,
   type: ContentType = 'vocabulary',
   meaningPt: string = '',
   contextSentence: string = ''
 ): void {
-  void getStudySheetWithGemini(term, type, meaningPt, contextSentence).catch(error => {
+  void getStudySheetWithOpenRouter(term, type, meaningPt, contextSentence).catch(error => {
     console.warn('Study sheet prefetch skipped:', error);
   });
 }

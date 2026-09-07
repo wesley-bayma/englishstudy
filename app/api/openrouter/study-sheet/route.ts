@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { StudySheet } from '../../../../lib/types';
 import { validateStudySheet } from '../../../../lib/card-format';
+import { requestOpenRouterJson } from '../../../../lib/openrouter-client';
 
 // Pre-curated instant entries matching user's canonical examples
 const CURATED_SHEETS: Record<string, any> = {
@@ -311,70 +311,15 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const apiKey = userApiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    const apiKey = userApiKey || process.env.OPENROUTER_API_KEY;
 
     // 1. SURVIVAL PHRASE HANDLER
     if (isSurvivalPhrase) {
       if (!apiKey) {
         return NextResponse.json({
-          error: 'Não há dados suficientes para gerar uma ficha natural sem a API do Gemini.'
+          error: 'Não há dados suficientes para gerar uma ficha natural sem a API do OpenRouter.'
         }, { status: 503 });
       }
-
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({
-        model: 'gemini-3.6-flash',
-        generationConfig: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: SchemaType.OBJECT,
-            properties: {
-              term: { type: SchemaType.STRING },
-              type: { type: SchemaType.STRING },
-              ipa: { type: SchemaType.STRING, description: 'Transcrição fonética IPA da frase completa' },
-              grammatical_class: { type: SchemaType.STRING, description: 'Sempre "frase de sobrevivência"' },
-              translation: { type: SchemaType.STRING, description: 'Tradução natural e completa em português' },
-              connotation_usage: { type: SchemaType.STRING, description: 'Contexto real e situações práticas de uso (aeroporto, restaurante, rua, emergência, etc.)' },
-              pattern: { type: SchemaType.STRING, description: 'Padrão comunicativo reutilizável da frase (ex: "Where is the nearest + [LUGAR]?" ou "I\'d like + [COISA], please.")' },
-              variations: {
-                type: SchemaType.ARRAY,
-                description: 'Exatamente 4 variações naturais da frase trocando apenas o elemento variável',
-                items: {
-                  type: SchemaType.OBJECT,
-                  properties: {
-                    en: { type: SchemaType.STRING, description: 'Variação natural em inglês' },
-                    pt: { type: SchemaType.STRING, description: 'Tradução precisa em português' }
-                  },
-                  required: ['en', 'pt']
-                }
-              },
-              strategic_gap: {
-                type: SchemaType.OBJECT,
-                description: 'Seleção de UMA ÚNICA lacuna estratégica com alto valor comunicativo',
-                properties: {
-                  gap_sentence: { type: SchemaType.STRING, description: 'A frase com o chunk escondido por (_____), ex: "Where is the (_____)?"' },
-                  expected_chunk: { type: SchemaType.STRING, description: 'O chunk ou palavra exata que foi escondida, ex: "nearest subway station"' },
-                  explanation: { type: SchemaType.STRING, description: 'Breve explicação pedagógica da escolha da lacuna' }
-                },
-                required: ['gap_sentence', 'expected_chunk']
-              },
-              tip_warning: { type: SchemaType.STRING, description: 'Dica prática de uso, preposição ou etiqueta iniciada com 💡 ou ⚠️' }
-            },
-            required: [
-              'term',
-              'type',
-              'ipa',
-              'grammatical_class',
-              'translation',
-              'connotation_usage',
-              'pattern',
-              'variations',
-              'strategic_gap',
-              'tip_warning'
-            ]
-          }
-        }
-      });
 
       const prompt = `Você é um especialista em ensino de inglês comunicativo focado em Frases de Sobrevivência para o Anki.
 Analise a FRASE DE SOBREVIVÊNCIA COMPLETA: "${term}".
@@ -392,8 +337,13 @@ GERE UMA FICHA DE FRASE DE SOBREVIVÊNCIA:
 6. Escolha de UMA ÚNICA LACUNA ESTRATÉGICA com alto valor comunicativo (ex: em "Could you speak more slowly?", esconda "more slowly" -> "Could you speak (_____)?").
 7. Dica de ouro ou atenção cultural/prática.`;
 
-      const result = await model.generateContent(prompt);
-      const parsed = JSON.parse(result.response.text()) as StudySheet;
+      const parsed = await requestOpenRouterJson<StudySheet>({
+        apiKey,
+        prompt,
+        systemPrompt: 'Você é um especialista em ensino de inglês. Responda somente com JSON válido, sem markdown ou texto adicional.',
+        maxTokens: 2400,
+        temperature: 0.1
+      });
       const validationErrors = validateStudySheet({ ...parsed, type: 'survival_phrase' });
       if (validationErrors.length > 0) {
         return NextResponse.json({
@@ -407,90 +357,9 @@ GERE UMA FICHA DE FRASE DE SOBREVIVÊNCIA:
     // 2. VOCABULARY & PHRASAL VERBS HANDLER
     if (!apiKey) {
       return NextResponse.json({
-        error: 'Não há dados suficientes para gerar uma ficha natural sem a API do Gemini.'
+        error: 'Não há dados suficientes para gerar uma ficha natural sem a API do OpenRouter.'
       }, { status: 503 });
     }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-3.6-flash',
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: SchemaType.OBJECT,
-          properties: {
-            term: { type: SchemaType.STRING },
-            type: { type: SchemaType.STRING },
-            ipa: { type: SchemaType.STRING, description: 'Transcrição fonética IPA padrão' },
-            grammatical_class: { type: SchemaType.STRING, description: 'Classe gramatical em português (ex: substantivo, verbo, adjetivo, phrasal verb)' },
-            translation: { type: SchemaType.STRING, description: 'Tradução principal clara em português' },
-            connotation_usage: { type: SchemaType.STRING, description: 'Explicação de uso, contabilidade, formas (infinitivo/passado) e conotação' },
-            useful_structures: {
-              type: SchemaType.ARRAY,
-              items: { type: SchemaType.STRING },
-              description: 'Somente estruturas úteis e naturais para o sentido principal, sem preencher volume artificialmente'
-            },
-            collocations: {
-              type: SchemaType.ARRAY,
-              description: 'Somente colocações ou chunks frequentes, naturais e semanticamente coerentes; pode ser uma lista menor',
-              items: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  en: { type: SchemaType.STRING },
-                  pt: { type: SchemaType.STRING }
-                },
-                required: ['en', 'pt']
-              }
-            },
-            examples: {
-              type: SchemaType.ARRAY,
-              description: 'Frases reais, naturais e adequadas ao nível; varie situações sem criar exemplos artificiais',
-              items: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  en: { type: SchemaType.STRING },
-                  pt: { type: SchemaType.STRING }
-                },
-                required: ['en', 'pt']
-              }
-            },
-            related_words: {
-              type: SchemaType.ARRAY,
-              items: { type: SchemaType.STRING },
-              description: 'Palavras da mesma família com tradução entre parênteses'
-            },
-            phrasal_verb_info: {
-              type: SchemaType.OBJECT,
-              description: 'Obrigatório para phrasal verbs; descreve o único sentido priorizado e seu comportamento sintático',
-              properties: {
-                primary_meaning: { type: SchemaType.STRING },
-                separability: { type: SchemaType.STRING, description: 'separable, inseparable ou both' },
-                transitivity: { type: SchemaType.STRING, description: 'transitive, intransitive ou both' },
-                object_pattern: { type: SchemaType.STRING },
-                pronoun_rule: { type: SchemaType.STRING }
-              },
-              required: ['primary_meaning', 'separability', 'transitivity', 'object_pattern']
-            },
-            tip_warning: {
-              type: SchemaType.STRING,
-              description: 'Dica de atenção ou armadilha iniciada por 💡 ou ⚠️'
-            }
-          },
-          required: [
-            'term',
-            'type',
-            'ipa',
-            'grammatical_class',
-            'translation',
-            'connotation_usage',
-            'collocations',
-            'examples',
-            'related_words',
-            'tip_warning'
-          ]
-        }
-      }
-    });
 
     const prompt = `Você é um professor de inglês comunicativo, especializado em aprendizagem ativa para a Camada do Viajante (A1/A2).
 Analise "${term}" como ${isPhrasalVerb ? 'PHRASAL VERB' : 'VOCABULÁRIO'}.
@@ -507,8 +376,13 @@ REGRAS OBRIGATÓRIAS:
 7. Gere IPA, classe gramatical, significado principal, uso, estruturas, colocações úteis, exemplos naturais, família de palavras e uma dica curta.
 8. Responda somente JSON conforme o schema. Campos sem informação segura devem ser arrays vazios; não use placeholders.`;
 
-    const result = await model.generateContent(prompt);
-    const parsed = JSON.parse(result.response.text()) as StudySheet;
+    const parsed = await requestOpenRouterJson<StudySheet>({
+      apiKey,
+      prompt,
+      systemPrompt: 'Você é um professor de inglês comunicativo. Responda somente com JSON válido, sem markdown ou texto adicional.',
+      maxTokens: 3000,
+      temperature: 0.1
+    });
     const validationErrors = validateStudySheet({ ...parsed, type });
     if (validationErrors.length > 0) {
       return NextResponse.json({
@@ -518,7 +392,7 @@ REGRAS OBRIGATÓRIAS:
     }
     return NextResponse.json({ ...parsed, type, isCurated: false });
   } catch (error: any) {
-    console.error('Error generating study sheet with Gemini:', error);
+    console.error('Error generating study sheet with OpenRouter:', error);
     return NextResponse.json({
       error: error.message || 'Failed to generate study sheet'
     }, { status: 500 });
