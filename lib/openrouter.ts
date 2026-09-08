@@ -186,7 +186,17 @@ export async function getStudySheetWithOpenRouter(
       });
 
       if (!res.ok) {
-        throw new Error(`Study sheet API error status ${res.status}`);
+        let message = `Study sheet API error status ${res.status}`;
+        try {
+          const errorBody = await res.json() as { error?: string | { message?: string } };
+          if (typeof errorBody.error === 'string') message = errorBody.error;
+          if (errorBody.error && typeof errorBody.error === 'object' && errorBody.error.message) {
+            message = errorBody.error.message;
+          }
+        } catch {
+          // Keep the HTTP status when the server did not return JSON.
+        }
+        throw new Error(message);
       }
 
       const data = await res.json() as StudySheet;
@@ -194,7 +204,7 @@ export async function getStudySheetWithOpenRouter(
       return data;
     } catch (error) {
       console.warn('Error fetching study sheet from OpenRouter:', error);
-      return null;
+      throw error;
     }
   })();
 

@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Front and Back are required' }, { status: 400 });
     }
 
-    const apiKey = userApiKey || process.env.OPENROUTER_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY || userApiKey;
 
     if (!apiKey) {
       const obs = validateCanonicalCard(front, back, type);

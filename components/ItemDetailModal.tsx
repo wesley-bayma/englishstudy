@@ -92,7 +92,10 @@ export function ItemDetailModal({
       .catch(err => {
         if (!isActive || err?.name === 'AbortError') return;
         console.error('Failed to load study sheet:', err);
-        setSheetError('Não foi possível carregar a ficha deste item. Tente novamente.');
+        const detail = err instanceof Error ? err.message : '';
+        setSheetError(detail
+          ? `Não foi possível gerar a ficha: ${detail}`
+          : 'Não foi possível carregar a ficha deste item. Tente novamente.');
       })
       .finally(() => {
         if (isActive) setIsLoadingSheet(false);

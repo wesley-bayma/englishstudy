@@ -311,7 +311,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const apiKey = userApiKey || process.env.OPENROUTER_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY || userApiKey;
 
     // 1. SURVIVAL PHRASE HANDLER
     if (isSurvivalPhrase) {

@@ -8,6 +8,7 @@ interface OpenRouterResponse {
     message?: {
       content?: string | OpenRouterContentPart[] | null;
     };
+    finish_reason?: string | null;
   }>;
   error?: {
     message?: string;
@@ -77,6 +78,7 @@ export async function requestOpenRouterJson<T>({
           { role: 'system', content: systemPrompt },
           { role: 'user', content: prompt }
         ],
+        response_format: { type: 'json_object' },
         max_tokens: maxTokens,
         temperature
       }),
@@ -86,6 +88,10 @@ export async function requestOpenRouterJson<T>({
     const payload = await response.json() as OpenRouterResponse;
     if (!response.ok) {
       throw new Error(payload.error?.message || `OpenRouter respondeu HTTP ${response.status}.`);
+    }
+
+    if (payload.choices?.[0]?.finish_reason === 'length') {
+      throw new Error('OpenRouter atingiu o limite de tokens antes de concluir o JSON.');
     }
 
     return parseJsonResponse<T>(extractContent(payload));
