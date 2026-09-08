@@ -4,21 +4,22 @@
 
 Configure estas variáveis na Vercel, separadas por ambiente:
 
-- `OPENROUTER_API_KEY`: chave privada do OpenRouter, usada somente pelas rotas do servidor.
+- `GEMINI_API_KEY`: chave privada do Gemini, usada somente pelas rotas do servidor.
 - `APP_PASSWORD`: senha pessoal de acesso à aplicação.
 - `SESSION_SECRET`: segredo aleatório com pelo menos 32 caracteres, diferente da senha.
-- `OPENROUTER_TIMEOUT_MS`: `50000`.
-- `OPENROUTER_MODEL`: opcional; o padrão é `~deepseek/deepseek-v4-flash-latest`.
-- `OPENROUTER_SITE_URL`: domínio público da aplicação, quando disponível.
+- `GEMINI_TIMEOUT_MS`: `50000`.
+- `GEMINI_MODEL`: opcional; o padrão é `gemini-2.5-flash`.
+- `OPENROUTER_API_KEY`: contingência privada para o Gemini; usada somente se a geração principal falhar.
+- `OPENROUTER_FALLBACK_MODEL`: opcional; o padrão é `z-ai/glm-5.3-flash`.
 
-Nunca coloque a chave OpenRouter em `NEXT_PUBLIC_*`, localStorage, código do navegador ou logs.
+Nunca coloque a chave Gemini em `NEXT_PUBLIC_*`, localStorage, código do navegador ou logs.
 
 ## Verificação após deploy
 
 1. Acesse `/api/health` e confirme HTTP 200 e `status: "ok"`.
 2. Confirme o header `X-EnglishHub-Release` ou o campo `release` do health check.
-3. Abra a ficha curada `cheap` e confirme que não houve chamada ao OpenRouter.
-4. Gere `building`, uma frase de sobrevivência e um phrasal verb.
+3. Abra a ficha curada `cheap` e confirme que não houve chamada à IA.
+4. Gere `building`, uma frase de sobrevivência e um phrasal verb. Em caso de falha do Gemini, a tentativa única de contingência usa o modelo GLM pelo OpenRouter.
 5. Verifique nos logs o evento `ai_request`, duração, status, modelo, `finishReason` e `requestId`.
 6. Confirme que a chave não aparece no payload da rede nem no localStorage.
 

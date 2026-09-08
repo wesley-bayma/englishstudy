@@ -74,7 +74,7 @@ async function parseApiResponse<T>(res: Response): Promise<T> {
 }
 
 /**
- * Call the Next.js API route to analyze query with OpenRouter.
+ * Call the protected server API to analyze a query with Gemini.
  */
 export async function analyzeWithOpenRouter(
   query: string,
@@ -90,7 +90,7 @@ export async function analyzeWithOpenRouter(
 }
 
 /**
- * Call the Next.js API route to review a card with OpenRouter.
+ * Call the protected server API to review a card with Gemini.
  */
 export async function reviewCardWithOpenRouter(
   front: string,
@@ -106,7 +106,7 @@ export async function reviewCardWithOpenRouter(
 }
 
 /**
- * Fetch complete pedagogical study sheet (IPA, natural usage, examples and tips) with OpenRouter.
+ * Fetch complete pedagogical study sheet (IPA, natural usage, examples and tips) with Gemini.
  */
 export async function getStudySheetWithOpenRouter(
   term: string,
@@ -142,7 +142,7 @@ export async function getStudySheetWithOpenRouter(
       void writeCachedStudySheet(cacheId, data);
       return data;
     } catch (error) {
-      console.warn('Error fetching study sheet from OpenRouter:', error);
+      console.warn('Error fetching study sheet from Gemini:', error);
       throw error;
     }
   })();

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { DEFAULT_OPENROUTER_MODEL, getOpenRouterApiKey, requestOpenRouterJson, OpenRouterResponseMeta } from '../../../../lib/openrouter-client';
+import { DEFAULT_GEMINI_MODEL, GeminiResponseMeta, requestAiJson } from '../../../../lib/gemini-client';
 import { AI_ANALYSIS_JSON_SCHEMA } from '../../../../lib/ai-schemas';
 import { parseAIAnalysis } from '../../../../lib/ai-validation';
 import { ApiServiceError, apiErrorResponse, createRequestId, getApiErrorInfo, logAiRequest, logApiFailure } from '../../../../lib/api-errors';
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   const startedAt = Date.now();
   const route = '/api/openrouter/analyze';
   let releaseConcurrency: (() => void) | null = null;
-  let responseMeta: OpenRouterResponseMeta | undefined;
+  let responseMeta: GeminiResponseMeta | undefined;
   let responseLogged = false;
   let attemptedAi = false;
 
@@ -24,8 +24,6 @@ export async function POST(req: NextRequest) {
     const query = requiredString(body, 'query', { max: 200 });
     const candidates = optionalStringArray(body, 'candidates', { maxItems: 50, maxItemLength: 200 });
     const context = optionalString(body, 'context', 800);
-    const apiKey = getOpenRouterApiKey();
-
     const clientKey = `${route}:${getClientAddress(req)}`;
     const rateLimit = checkRateLimit(clientKey, 30, 60_000);
     if (!rateLimit.allowed) {
@@ -58,8 +56,7 @@ Instruções fundamentais:
 6. Responda ESTRITAMENTE em JSON válido com estes campos: classification, base_form, has_possible_match, matched_existing_content, similarity_type, confidence, meaning_pt, explanation e suggested_example.`;
 
     attemptedAi = true;
-    const parsed = await requestOpenRouterJson<unknown>({
-      apiKey,
+    const parsed = await requestAiJson<unknown>({
       prompt,
       systemPrompt: 'Você é um assistente linguístico. Responda somente com JSON válido, sem markdown ou texto adicional.',
       maxTokens: 1200,
@@ -69,13 +66,13 @@ Instruções fundamentais:
     });
     const result = parseAIAnalysis(parsed);
     if (!result.ok) throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'A IA retornou uma análise inválida.');
-    logAiRequest({ requestId, route, model: responseMeta?.model || DEFAULT_OPENROUTER_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || 200, finishReason: responseMeta?.finishReason });
+    logAiRequest({ requestId, route, model: responseMeta?.model || DEFAULT_GEMINI_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || 200, finishReason: responseMeta?.finishReason });
     responseLogged = true;
     return NextResponse.json(result.data, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error: unknown) {
     if (attemptedAi && !responseLogged) {
       const info = getApiErrorInfo(error);
-      logAiRequest({ requestId, route, model: responseMeta?.model || process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || info.status, finishReason: responseMeta?.finishReason });
+      logAiRequest({ requestId, route, model: responseMeta?.model || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || info.status, finishReason: responseMeta?.finishReason });
     }
     logApiFailure(requestId, route, error);
     return apiErrorResponse(requestId, error);

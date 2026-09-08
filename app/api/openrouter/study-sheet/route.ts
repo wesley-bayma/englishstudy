@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { StudySheet } from '../../../../lib/types';
-import { DEFAULT_OPENROUTER_MODEL, getOpenRouterApiKey, requestOpenRouterJson, OpenRouterResponseMeta } from '../../../../lib/openrouter-client';
+import { DEFAULT_GEMINI_MODEL, GeminiResponseMeta, requestAiJson } from '../../../../lib/gemini-client';
 import { STUDY_SHEET_JSON_SCHEMA } from '../../../../lib/ai-schemas';
 import { validateParsedStudySheet } from '../../../../lib/ai-validation';
 import { ApiServiceError, apiErrorResponse, createRequestId, getApiErrorInfo, logAiRequest, logApiFailure } from '../../../../lib/api-errors';
@@ -318,7 +318,7 @@ export async function POST(req: NextRequest) {
   const startedAt = Date.now();
   const route = '/api/openrouter/study-sheet';
   let releaseConcurrency: (() => void) | null = null;
-  let responseMeta: OpenRouterResponseMeta | undefined;
+  let responseMeta: GeminiResponseMeta | undefined;
   let responseLogged = false;
   let attemptedAi = false;
 
@@ -342,8 +342,6 @@ export async function POST(req: NextRequest) {
         isCurated: true
       }, { headers: { 'Cache-Control': 'private, max-age=300' } });
     }
-
-    const apiKey = getOpenRouterApiKey();
 
     const clientKey = `${route}:${getClientAddress(req)}`;
     const rateLimit = checkRateLimit(clientKey, 20, 60_000);
@@ -390,8 +388,7 @@ GERE UMA FICHA DE FRASE DE SOBREVIVÊNCIA:
 7. Dica de ouro ou atenção cultural/prática.`;
 
       attemptedAi = true;
-      const parsed = await requestOpenRouterJson<unknown>({
-        apiKey,
+      const parsed = await requestAiJson<unknown>({
         prompt,
         systemPrompt: 'Você é um especialista em ensino de inglês. Responda somente com JSON válido, sem markdown ou texto adicional.',
         maxTokens: 2400,
@@ -401,7 +398,7 @@ GERE UMA FICHA DE FRASE DE SOBREVIVÊNCIA:
       });
       const result = validateParsedStudySheet(parsed, 'survival_phrase');
       if (!result.ok) throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'A IA retornou uma ficha inválida.');
-      logAiRequest({ requestId, route, model: responseMeta?.model || DEFAULT_OPENROUTER_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || 200, finishReason: responseMeta?.finishReason });
+      logAiRequest({ requestId, route, model: responseMeta?.model || DEFAULT_GEMINI_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || 200, finishReason: responseMeta?.finishReason });
       responseLogged = true;
       return NextResponse.json({ ...result.data, type: 'survival_phrase', isCurated: false }, { headers: { 'Cache-Control': 'no-store' } });
     }
@@ -423,8 +420,7 @@ REGRAS OBRIGATÓRIAS:
 8. Responda somente JSON conforme o schema. Campos sem informação segura devem ser arrays vazios; não use placeholders.`;
 
     attemptedAi = true;
-    const parsed = await requestOpenRouterJson<unknown>({
-      apiKey,
+    const parsed = await requestAiJson<unknown>({
       prompt,
       systemPrompt: 'Você é um professor de inglês comunicativo. Responda somente com JSON válido, sem markdown ou texto adicional.',
       maxTokens: 3000,
@@ -434,13 +430,13 @@ REGRAS OBRIGATÓRIAS:
     });
     const result = validateParsedStudySheet(parsed, type);
     if (!result.ok) throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'A IA retornou uma ficha inválida.');
-    logAiRequest({ requestId, route, model: responseMeta?.model || DEFAULT_OPENROUTER_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || 200, finishReason: responseMeta?.finishReason });
+    logAiRequest({ requestId, route, model: responseMeta?.model || DEFAULT_GEMINI_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || 200, finishReason: responseMeta?.finishReason });
     responseLogged = true;
     return NextResponse.json({ ...result.data, type, isCurated: false }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error: unknown) {
     if (attemptedAi && !responseLogged) {
       const info = getApiErrorInfo(error);
-      logAiRequest({ requestId, route, model: responseMeta?.model || process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || info.status, finishReason: responseMeta?.finishReason });
+      logAiRequest({ requestId, route, model: responseMeta?.model || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || info.status, finishReason: responseMeta?.finishReason });
     }
     logApiFailure(requestId, route, error);
     return apiErrorResponse(requestId, error);

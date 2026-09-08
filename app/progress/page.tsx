@@ -394,17 +394,17 @@ export default function ProgressPage() {
         </form>
       </div>
 
-      {/* 6. CONFIGURAÇÕES OPENROUTER */}
+      {/* 6. CONFIGURAÇÕES DE IA */}
       <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-4">
         <h2 className="text-xl font-black text-white flex items-center gap-2.5">
           <Sparkles className="w-5 h-5 text-card-lime" />
-          Configuração de IA (OpenRouter)
+          Configuração de IA (Gemini)
         </h2>
         <p className="text-xs text-slate-400">
           A integração usa uma chave protegida no servidor. Ela não é armazenada no navegador nem enviada no payload da aplicação.
         </p>
         <p className="text-[11px] text-slate-500 font-mono">
-          Variáveis necessárias na Vercel: OPENROUTER_API_KEY, APP_PASSWORD e SESSION_SECRET.
+          Variáveis necessárias na Vercel: GEMINI_API_KEY, APP_PASSWORD e SESSION_SECRET.
         </p>
       </div>
     </div>

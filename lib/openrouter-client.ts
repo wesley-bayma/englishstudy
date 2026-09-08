@@ -34,6 +34,7 @@ export interface OpenRouterResponseMeta {
 
 export interface OpenRouterJsonRequest {
   apiKey: string;
+  model?: string;
   prompt: string;
   systemPrompt?: string;
   maxTokens?: number;
@@ -77,6 +78,7 @@ function parseJsonResponse<T>(content: string): T {
 
 export async function requestOpenRouterJson<T>({
   apiKey,
+  model: requestedModel,
   prompt,
   systemPrompt = 'Responda somente com JSON válido, sem markdown ou texto adicional.',
   maxTokens = 4096,
@@ -90,7 +92,7 @@ export async function requestOpenRouterJson<T>({
     ? Math.min(configuredTimeout, 55_000)
     : DEFAULT_TIMEOUT_MS;
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  const model = process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL;
+  const model = requestedModel || process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL;
 
   try {
     let response: Response;
@@ -100,7 +102,7 @@ export async function requestOpenRouterJson<T>({
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'https://englishstudy-chi.vercel.app',
+        'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'https://english-bayma.vercel.app',
         'X-Title': 'English Study Hub'
       },
       body: JSON.stringify({

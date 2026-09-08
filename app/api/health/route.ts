@@ -5,7 +5,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const ready = Boolean(process.env.OPENROUTER_API_KEY && getAuthConfig());
+  const ready = Boolean((process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY) && getAuthConfig());
   const response = NextResponse.json({
     status: ready ? 'ok' : 'degraded',
     release: process.env.VERCEL_GIT_COMMIT_SHA || 'local',

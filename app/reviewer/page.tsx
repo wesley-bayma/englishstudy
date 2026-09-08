@@ -172,7 +172,7 @@ export default function ReviewerPage() {
             {isReviewing ? (
               <>
                 <Sparkles className="w-4 h-4 animate-spin" />
-                Avaliando com OpenRouter...
+                Avaliando com Gemini...
               </>
             ) : (
               <>
