@@ -21,6 +21,7 @@ export default function ReviewerPage() {
   const [back, setBack] = useState('');
   const [isReviewing, setIsReviewing] = useState(false);
   const [result, setResult] = useState<CardReviewResult | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const handleReview = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,12 +29,14 @@ export default function ReviewerPage() {
 
     setIsReviewing(true);
     setResult(null);
+    setReviewError(null);
 
     try {
       const res = await reviewCardWithOpenRouter(front.trim(), back.trim(), type);
       setResult(res);
     } catch (err) {
       console.error('Failed to review card:', err);
+      setReviewError(err instanceof Error ? err.message : 'Não foi possível revisar o card agora.');
     } finally {
       setIsReviewing(false);
     }
@@ -60,7 +63,7 @@ export default function ReviewerPage() {
       <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-6">
         <div className="space-y-2">
           <span className="text-xs font-mono font-bold tracking-widest text-card-lime uppercase">
-            // Avaliação Canônica de Flashcards
+            {'//'} Avaliação Canônica de Flashcards
           </span>
           <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
             Revisar Meu Card
@@ -180,6 +183,16 @@ export default function ReviewerPage() {
           </button>
         </form>
       </div>
+
+      {reviewError && (
+        <div className="bg-rose-500/10 border-2 border-rose-500/30 rounded-2xl p-4 text-sm text-rose-300 flex items-start gap-2.5" role="alert">
+          <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="font-bold">Não foi possível revisar o card.</p>
+            <p className="text-xs mt-1 text-rose-200/80">{reviewError}</p>
+          </div>
+        </div>
+      )}
 
       {/* Review Feedback Result */}
       {result && (

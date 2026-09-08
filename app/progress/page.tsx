@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { getStudyHubStats } from '../../lib/db';
-import { exportToJSON, exportToCSV, validateImportData, commitImport, ImportValidationReport } from '../../lib/export-import';
-import { getStoredApiKey, setStoredApiKey } from '../../lib/openrouter';
+import { exportToJSON, exportToCSV, validateImportData, commitImport, ImportValidationReport, MAX_IMPORT_BYTES } from '../../lib/export-import';
 import {
   getDailyCardGoal,
   setDailyCardGoal,
@@ -14,7 +13,6 @@ import {
   BarChart3, 
   Download, 
   Upload, 
-  Key, 
   Flame, 
   CheckCircle2, 
   Clock, 
@@ -31,8 +29,6 @@ export default function ProgressPage() {
   const [loading, setLoading] = useState(true);
 
   // Settings
-  const [apiKey, setApiKey] = useState('');
-  const [isApiKeySaved, setIsApiKeySaved] = useState(false);
   const [dailyCardGoal, setDailyCardGoalInput] = useState(String(getDailyCardGoal()));
   const [isDailyGoalSaved, setIsDailyGoalSaved] = useState(false);
 
@@ -41,10 +37,10 @@ export default function ProgressPage() {
   const [importReport, setImportReport] = useState<ImportValidationReport | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   useEffect(() => {
     loadStats();
-    setApiKey(getStoredApiKey());
     setDailyCardGoalInput(String(getDailyCardGoal()));
   }, []);
 
@@ -58,13 +54,6 @@ export default function ProgressPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSaveApiKey = (e: React.FormEvent) => {
-    e.preventDefault();
-    setStoredApiKey(apiKey);
-    setIsApiKeySaved(true);
-    setTimeout(() => setIsApiKeySaved(false), 2500);
   };
 
   const handleSaveDailyGoal = (e: React.FormEvent) => {
@@ -104,11 +93,21 @@ export default function ProgressPage() {
     setImportFile(file);
     setImportReport(null);
     setImportSuccess(null);
+    setImportError(null);
 
-    const text = await file.text();
-    const format = file.name.endsWith('.csv') ? 'csv' : 'json';
-    const report = await validateImportData(text, format);
-    setImportReport(report);
+    if (file.size > MAX_IMPORT_BYTES) {
+      setImportError('O arquivo excede o limite de 5 MB.');
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const format = file.name.endsWith('.csv') ? 'csv' : 'json';
+      const report = await validateImportData(text, format);
+      setImportReport(report);
+    } catch {
+      setImportError('Não foi possível ler este arquivo.');
+    }
   };
 
   const handleConfirmImport = async () => {
@@ -123,6 +122,7 @@ export default function ProgressPage() {
       loadStats();
     } catch (err: any) {
       console.error('Import error:', err);
+      setImportError('Não foi possível concluir a importação.');
     } finally {
       setIsImporting(false);
     }
@@ -131,7 +131,7 @@ export default function ProgressPage() {
   if (loading || !stats) {
     return (
       <div className="py-20 text-center text-slate-500 font-mono text-sm">
-        // Carregando métricas...
+        {'//'} Carregando métricas...
       </div>
     );
   }
@@ -148,7 +148,7 @@ export default function ProgressPage() {
       {/* Header */}
       <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-2">
         <span className="text-xs font-mono font-bold tracking-widest text-card-lime uppercase">
-          // Métricas & Backup Soberano
+          {'//'} Métricas & Backup Soberano
         </span>
         <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
           Progresso de Conversão
@@ -217,7 +217,7 @@ export default function ProgressPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-4">
           <span className="text-xs font-mono font-bold text-card-lime uppercase block">
-            // Meus Achados (Inbox)
+            {'//'} Meus Achados (Inbox)
           </span>
           <div className="flex items-baseline gap-2">
             <div className="text-4xl font-black text-white font-mono">{stats.inbox.total}</div>
@@ -290,6 +290,13 @@ export default function ProgressPage() {
           <div className="p-3.5 bg-card-lime/10 border border-card-lime/30 rounded-2xl text-xs text-card-lime font-bold flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4" />
             {importSuccess}
+          </div>
+        )}
+
+        {importError && (
+          <div className="p-3.5 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-xs text-rose-300 font-bold flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4" />
+            {importError}
           </div>
         )}
 
@@ -390,38 +397,15 @@ export default function ProgressPage() {
       {/* 6. CONFIGURAÇÕES OPENROUTER */}
       <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-4">
         <h2 className="text-xl font-black text-white flex items-center gap-2.5">
-          <Key className="w-5 h-5 text-card-lime" />
+          <Sparkles className="w-5 h-5 text-card-lime" />
           Configuração de IA (OpenRouter)
         </h2>
         <p className="text-xs text-slate-400">
-          Chave armazenada localmente no seu dispositivo.
+          A integração usa uma chave protegida no servidor. Ela não é armazenada no navegador nem enviada no payload da aplicação.
         </p>
-
-        <form onSubmit={handleSaveApiKey} className="space-y-3">
-          <input
-            type="password"
-            placeholder="sk-or-v1-..."
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            className="w-full px-4 py-3 rounded-2xl bg-dark-bg border border-dark-border text-white text-sm font-mono focus:outline-none focus:border-card-lime"
-          />
-
-          <div className="flex items-center justify-end pt-1">
-            <button
-              type="submit"
-              className="flex items-center gap-1.5 px-6 py-3 bg-card-lime hover:bg-card-limeDark text-dark-bg rounded-full text-xs font-black shadow-lg active:scale-95 transition-all"
-            >
-              {isApiKeySaved ? (
-                <>
-                  <Check className="w-3.5 h-3.5 stroke-[3]" />
-                  Salvo!
-                </>
-              ) : (
-                'Salvar Chave'
-              )}
-            </button>
-          </div>
-        </form>
+        <p className="text-[11px] text-slate-500 font-mono">
+          Variáveis necessárias na Vercel: OPENROUTER_API_KEY, APP_PASSWORD e SESSION_SECRET.
+        </p>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import Dexie, { Table } from 'dexie';
+import Dexie, { Collection, Table } from 'dexie';
 import {
   ContentItem,
   Encounter,
@@ -9,7 +9,7 @@ import {
   StudySheetCacheEntry
 } from './types';
 import { normalizeContent } from './normalizer';
-import seedData from '../data/seed-data.json';
+import { loadCanonicalSeed } from './canonical-seed';
 
 export class EnglishHubDB extends Dexie {
   content_items!: Table<ContentItem, string>;
@@ -164,11 +164,10 @@ async function migrateLegacyDatabase(targetDb: EnglishHubDB): Promise<boolean> {
 }
 
 /**
- * The canonical dataset now starts a fresh study count. Clear generated daily
- * history and base progress once, preserving the canonical content itself and
- * all user-created Inbox records.
+ * Dataset updates must never erase local progress implicitly. Keep a marker so
+ * migrations can be made explicit and backed up in a future release.
  */
-async function resetStudyProgressForDatasetVersion(targetDb: EnglishHubDB): Promise<void> {
+async function markCanonicalDatasetVersion(): Promise<void> {
   if (typeof window === 'undefined') return;
 
   try {
@@ -176,44 +175,17 @@ async function resetStudyProgressForDatasetVersion(targetDb: EnglishHubDB): Prom
       return;
     }
   } catch {
-    // Private browsing/test environments may not expose localStorage. Avoid
-    // repeating a destructive reset when its completion cannot be recorded.
+    // Private browsing/test environments may not expose localStorage.
     return;
   }
-
-  const baseItems = await targetDb.content_items.where('source').equals('base').toArray();
-  const baseIds = new Set(baseItems.map(item => item.id));
-  const baseEncounterIds = (await targetDb.encounters.toArray())
-    .filter(encounter => baseIds.has(encounter.content_id))
-    .map(encounter => encounter.id);
-
-  await targetDb.transaction(
-    'rw',
-    targetDb.content_items,
-    targetDb.encounters,
-    targetDb.daily_queues,
-    targetDb.study_sheets,
-    async () => {
-      await targetDb.content_items.bulkPut(baseItems.map(item => ({
-        ...item,
-        anki_status: 'not_created' as const,
-        anki_created_at: null,
-        times_encountered: 0,
-        last_encountered: null
-      })));
-      if (baseEncounterIds.length > 0) await targetDb.encounters.bulkDelete(baseEncounterIds);
-      await targetDb.daily_queues.clear();
-      await targetDb.study_sheets.clear();
-    }
-  );
 
   try {
     window.localStorage.setItem(CANONICAL_DATASET_VERSION_KEY, CANONICAL_DATASET_VERSION);
   } catch {
-    // The reset already happened; leave the app usable if persistence is blocked.
+    // The marker is optional; leave the app usable if persistence is blocked.
   }
 
-  console.info('Study progress reset for canonical 10,000-word dataset.');
+  console.info('Canonical dataset version recorded; existing study progress preserved.');
 }
 
 let dbInstance: EnglishHubDB | null = null;
@@ -240,6 +212,7 @@ async function initializeDatabase(): Promise<number> {
   
   try {
     const count = await db.content_items.count();
+    const seedData = await loadCanonicalSeed();
     const formattedSeeds: ContentItem[] = (seedData as any[]).map(item => ({
       ...item,
       normalized_content: item.normalized_content || normalizeContent(item.content),
@@ -276,10 +249,8 @@ async function initializeDatabase(): Promise<number> {
       initializedCount = count + missingSeeds.length;
     }
 
-    const migratedLegacyData = await migrateLegacyDatabase(db);
-    if (count > 0 || migratedLegacyData) {
-      await resetStudyProgressForDatasetVersion(db);
-    }
+    await migrateLegacyDatabase(db);
+    await markCanonicalDatasetVersion();
     return initializedCount;
   } catch (error) {
     console.error('Error initializing database:', error);
@@ -363,9 +334,22 @@ export async function searchContentItems(options: {
 
   const normalizedQuery = normalizeContent(query);
 
-  let collection = db.content_items.toCollection();
+  // Start from an IndexedDB index whenever one of the primary filters is
+  // active. Remaining filters still run in memory to preserve the existing
+  // contains-search behavior without loading unrelated records first.
+  let collection: Collection<ContentItem, string> = db.content_items.toCollection();
+  const indexedBySource = sourceFilter === 'base';
+  const indexedByType = !indexedBySource && typeFilter !== 'all';
+  const indexedByAnki = !indexedBySource && !indexedByType && ankiFilter !== 'all';
 
-  // Filter in memory for maximum flexibility & speed
+  if (indexedBySource) {
+    collection = db.content_items.where('source').equals('base');
+  } else if (indexedByType) {
+    collection = db.content_items.where('type').equals(typeFilter);
+  } else if (indexedByAnki) {
+    collection = db.content_items.where('anki_status').equals(ankiFilter);
+  }
+
   let allFiltered = await collection.toArray();
 
   if (normalizedQuery) {
@@ -376,17 +360,15 @@ export async function searchContentItems(options: {
     );
   }
 
-  if (sourceFilter === 'base') {
-    allFiltered = allFiltered.filter(i => i.source === 'base');
-  } else if (sourceFilter === 'inbox') {
+  if (sourceFilter === 'inbox') {
     allFiltered = allFiltered.filter(i => i.source !== 'base');
   }
 
-  if (typeFilter !== 'all') {
+  if (typeFilter !== 'all' && !indexedByType) {
     allFiltered = allFiltered.filter(i => i.type === typeFilter);
   }
 
-  if (ankiFilter !== 'all') {
+  if (ankiFilter !== 'all' && !indexedByAnki) {
     allFiltered = allFiltered.filter(i => i.anki_status === ankiFilter);
   }
 

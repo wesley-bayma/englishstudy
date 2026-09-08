@@ -31,6 +31,7 @@ export default function AddPage() {
   const [query, setQuery] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [hasVerified, setHasVerified] = useState(false);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
 
   // Results
   const [exactMatch, setExactMatch] = useState<ContentItem | null>(null);
@@ -73,6 +74,7 @@ export default function AddPage() {
 
     setIsVerifying(true);
     setHasVerified(false);
+    setVerificationError(null);
     setExactMatch(null);
     setAiMatch(null);
     setCandidateItem(null);
@@ -143,7 +145,8 @@ export default function AddPage() {
       setHasVerified(true);
     } catch (err) {
       console.error('Verification error:', err);
-      setHasVerified(true);
+      setHasVerified(false);
+      setVerificationError(err instanceof Error ? err.message : 'Não foi possível verificar o item agora.');
     } finally {
       setIsVerifying(false);
     }
@@ -196,7 +199,7 @@ export default function AddPage() {
       <div className="bg-dark-card rounded-[32px] p-6 sm:p-8 border border-dark-border shadow-2xl space-y-6">
         <div className="space-y-2">
           <span className="text-xs font-mono font-bold tracking-widest text-card-lime uppercase">
-            // Curadoria Rápida & Inbox
+            {'//'} Curadoria Rápida & Inbox
           </span>
           <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
             Adicionar Novo Conteúdo
@@ -264,6 +267,16 @@ export default function AddPage() {
         </form>
       </div>
 
+      {verificationError && (
+        <div className="bg-rose-500/10 border-2 border-rose-500/30 rounded-2xl p-4 text-sm text-rose-300 flex items-start gap-2.5" role="alert">
+          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="font-bold">Não foi possível verificar o item.</p>
+            <p className="text-xs mt-1 text-rose-200/80">{verificationError}</p>
+          </div>
+        </div>
+      )}
+
       {/* Verification Result */}
       {hasVerified && !forceShowAddForm && isDuplicateOrVariant && (
         <DuplicateMatchCard
@@ -293,7 +306,7 @@ export default function AddPage() {
           <div className="flex items-center justify-between pb-4 border-b border-dark-border">
             <div>
               <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-card-lime block">
-                // Novo Conteúdo Disponível
+                {'//'} Novo Conteúdo Disponível
               </span>
               <h3 className="text-xl font-black text-white">&ldquo;{query.trim()}&rdquo;</h3>
             </div>

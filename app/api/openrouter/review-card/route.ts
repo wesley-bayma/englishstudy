@@ -1,27 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { CardReviewResult } from '../../../../lib/types';
-import { validateCanonicalCard } from '../../../../lib/card-format';
-import { requestOpenRouterJson } from '../../../../lib/openrouter-client';
+import { DEFAULT_OPENROUTER_MODEL, getOpenRouterApiKey, requestOpenRouterJson, OpenRouterResponseMeta } from '../../../../lib/openrouter-client';
+import { CARD_REVIEW_JSON_SCHEMA } from '../../../../lib/ai-schemas';
+import { parseCardReview } from '../../../../lib/ai-validation';
+import { ApiServiceError, apiErrorResponse, createRequestId, getApiErrorInfo, logAiRequest, logApiFailure } from '../../../../lib/api-errors';
+import { assertAllowedFields, getClientAddress, optionalContentType, parseJsonBody, requiredString } from '../../../../lib/api-validation';
+import { checkRateLimit, tryAcquireConcurrency } from '../../../../lib/rate-limit';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
+  const requestId = createRequestId();
+  const startedAt = Date.now();
+  const route = '/api/openrouter/review-card';
+  let releaseConcurrency: (() => void) | null = null;
+  let responseMeta: OpenRouterResponseMeta | undefined;
+  let responseLogged = false;
+  let attemptedAi = false;
+
   try {
-    const { front, back, type, apiKey: userApiKey } = await req.json();
+    const body = await parseJsonBody(req, 16_384);
+    assertAllowedFields(body, ['front', 'back', 'type']);
+    const front = requiredString(body, 'front', { max: 2000 });
+    const back = requiredString(body, 'back', { max: 2000 });
+    const type = optionalContentType(body, 'type');
+    const apiKey = getOpenRouterApiKey();
 
-    if (!front || !back) {
-      return NextResponse.json({ error: 'Front and Back are required' }, { status: 400 });
+    const clientKey = `${route}:${getClientAddress(req)}`;
+    const rateLimit = checkRateLimit(clientKey, 30, 60_000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json({ error: { code: 'RATE_LIMITED', message: 'Muitas revisões em pouco tempo. Tente novamente mais tarde.', requestId } }, {
+        status: 429,
+        headers: { 'Retry-After': String(rateLimit.retryAfterSeconds), 'Cache-Control': 'no-store' }
+      });
     }
-
-    const apiKey = process.env.OPENROUTER_API_KEY || userApiKey;
-
-    if (!apiKey) {
-      const obs = validateCanonicalCard(front, back, type);
-
-      return NextResponse.json({
-        status: obs.length === 0 ? 'good' : (obs.length === 1 ? 'improvable' : 'bad'),
-        status_label: obs.length === 0 ? '✅ Bom' : (obs.length === 1 ? '⚠️ Pode melhorar' : '❌ Problema importante'),
-        score: obs.length === 0 ? 95 : (obs.length === 1 ? 75 : 50),
-        observations: obs.length > 0 ? obs : ['Estrutura atende às regras de recuperação ativa.'],
-        summary: obs.length === 0 ? 'Card bem equilibrado e natural.' : 'Alguns ajustes são necessários.'
+    releaseConcurrency = tryAcquireConcurrency(clientKey, 2);
+    if (!releaseConcurrency) {
+      return NextResponse.json({ error: { code: 'CONCURRENCY_LIMITED', message: 'Já existe uma revisão em andamento. Aguarde alguns segundos.', requestId } }, {
+        status: 429,
+        headers: { 'Retry-After': '5', 'Cache-Control': 'no-store' }
       });
     }
 
@@ -56,23 +73,29 @@ PADRÕES ESPERADOS PELO USUÁRIO:
 
 Avalie o card segundo essas regras e retorne no máximo 3 observações concisas e diretas (sem textos longos!). Responda ESTRITAMENTE em JSON válido com os campos status, status_label, score, observations e summary.`;
 
-    const parsed = await requestOpenRouterJson<CardReviewResult>({
+    attemptedAi = true;
+    const parsed = await requestOpenRouterJson<unknown>({
       apiKey,
       prompt,
       systemPrompt: 'Você é um avaliador de flashcards. Responda somente com JSON válido, sem markdown ou texto adicional.',
       maxTokens: 1000,
-      temperature: 0.1
+      temperature: 0.1,
+      jsonSchema: CARD_REVIEW_JSON_SCHEMA,
+      onResponse: meta => { responseMeta = meta; }
     });
-
-    return NextResponse.json(parsed);
+    const result = parseCardReview(parsed);
+    if (!result.ok) throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'A IA retornou uma avaliação inválida.');
+    logAiRequest({ requestId, route, model: responseMeta?.model || DEFAULT_OPENROUTER_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || 200, finishReason: responseMeta?.finishReason });
+    responseLogged = true;
+    return NextResponse.json(result.data, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error: unknown) {
-    console.error('Error in /api/openrouter/review-card:', error);
-    return NextResponse.json({
-      status: 'good',
-      status_label: '✅ Bom',
-      score: 90,
-      observations: ['Card formatado de acordo com os princípios de recuperação ativa.'],
-      summary: 'Avaliação concluída.'
-    });
+    if (attemptedAi && !responseLogged) {
+      const info = getApiErrorInfo(error);
+      logAiRequest({ requestId, route, model: responseMeta?.model || process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || info.status, finishReason: responseMeta?.finishReason });
+    }
+    logApiFailure(requestId, route, error);
+    return apiErrorResponse(requestId, error);
+  } finally {
+    releaseConcurrency?.();
   }
 }

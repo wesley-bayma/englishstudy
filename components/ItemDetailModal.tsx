@@ -52,7 +52,6 @@ export function ItemDetailModal({
     if (!item || !isOpen) return;
 
     let isActive = true;
-    const controller = new AbortController();
 
     if (!readOnly && queueItems.length > 1) {
       const currentQueueIndex = queueItems.findIndex(queueItem => queueItem.id === item.id);
@@ -81,7 +80,7 @@ export function ItemDetailModal({
     setIsLoadingSheet(true);
     setSheet(null);
     setSheetError(null);
-    getStudySheetWithOpenRouter(item.content, item.type, item.meaning_pt || '', item.example || '', controller.signal)
+    getStudySheetWithOpenRouter(item.content, item.type, item.meaning_pt || '', item.example || '')
       .then(res => {
         if (!isActive) return;
         setSheet(res);
@@ -103,13 +102,12 @@ export function ItemDetailModal({
 
     return () => {
       isActive = false;
-      controller.abort();
       if (autoAdvanceTimerRef.current !== null) {
         window.clearTimeout(autoAdvanceTimerRef.current);
         autoAdvanceTimerRef.current = null;
       }
     };
-  }, [isOpen, item?.id, item?.content, item?.type, item?.meaning_pt, item?.example, readOnly]);
+  }, [isOpen, item, item?.id, item?.content, item?.type, item?.meaning_pt, item?.example, readOnly, queueItems]);
 
   if (!isOpen || !item) return null;
 

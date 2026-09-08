@@ -421,7 +421,7 @@ export default function TodayPage() {
       <div className="space-y-6">
         <div className="space-y-3">
           <span className="text-xs font-mono font-bold tracking-widest text-card-lime uppercase">
-            // Curadoria Diária Sequencial
+            {'//'} Curadoria Diária Sequencial
           </span>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tighter text-white leading-[1.05]">
             Conteúdos de Hoje.
@@ -540,7 +540,7 @@ export default function TodayPage() {
       {/* Modern Content Cards Grid */}
       {loading ? (
         <div className="py-20 text-center text-slate-400 font-mono text-sm">
-          // Carregando conteúdos de hoje na ordem da lista...
+          {'//'} Carregando conteúdos de hoje na ordem da lista...
         </div>
       ) : !queue ? (
         <div className="bg-dark-card rounded-[32px] p-12 text-center border border-dark-border space-y-4">

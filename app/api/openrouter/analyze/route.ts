@@ -1,28 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { AIAnalysisResult } from '../../../../lib/types';
-import { requestOpenRouterJson } from '../../../../lib/openrouter-client';
+import { DEFAULT_OPENROUTER_MODEL, getOpenRouterApiKey, requestOpenRouterJson, OpenRouterResponseMeta } from '../../../../lib/openrouter-client';
+import { AI_ANALYSIS_JSON_SCHEMA } from '../../../../lib/ai-schemas';
+import { parseAIAnalysis } from '../../../../lib/ai-validation';
+import { ApiServiceError, apiErrorResponse, createRequestId, getApiErrorInfo, logAiRequest, logApiFailure } from '../../../../lib/api-errors';
+import { assertAllowedFields, getClientAddress, optionalString, optionalStringArray, parseJsonBody, requiredString } from '../../../../lib/api-validation';
+import { checkRateLimit, tryAcquireConcurrency } from '../../../../lib/rate-limit';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
+  const requestId = createRequestId();
+  const startedAt = Date.now();
+  const route = '/api/openrouter/analyze';
+  let releaseConcurrency: (() => void) | null = null;
+  let responseMeta: OpenRouterResponseMeta | undefined;
+  let responseLogged = false;
+  let attemptedAi = false;
+
   try {
-    const { query, candidates = [], context = '', apiKey: userApiKey } = await req.json();
+    const body = await parseJsonBody(req, 16_384);
+    assertAllowedFields(body, ['query', 'candidates', 'context']);
+    const query = requiredString(body, 'query', { max: 200 });
+    const candidates = optionalStringArray(body, 'candidates', { maxItems: 50, maxItemLength: 200 });
+    const context = optionalString(body, 'context', 800);
+    const apiKey = getOpenRouterApiKey();
 
-    if (!query) {
-      return NextResponse.json({ error: 'Query is required' }, { status: 400 });
+    const clientKey = `${route}:${getClientAddress(req)}`;
+    const rateLimit = checkRateLimit(clientKey, 30, 60_000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json({ error: { code: 'RATE_LIMITED', message: 'Muitas análises em pouco tempo. Tente novamente mais tarde.', requestId } }, {
+        status: 429,
+        headers: { 'Retry-After': String(rateLimit.retryAfterSeconds), 'Cache-Control': 'no-store' }
+      });
     }
-
-    const apiKey = process.env.OPENROUTER_API_KEY || userApiKey;
-
-    if (!apiKey) {
-      return NextResponse.json({
-        classification: query.split(' ').length > 3 ? 'survival_phrase' : (query.includes(' ') ? 'phrasal_verb' : 'vocabulary'),
-        base_form: query.trim().toLowerCase(),
-        has_possible_match: false,
-        matched_existing_content: null,
-        similarity_type: 'none',
-        confidence: 0.8,
-        meaning_pt: '',
-        explanation: 'Configure sua chave de API OpenRouter em Progresso > Configurações para análise avançada de IA.',
-        suggested_example: context || ''
+    releaseConcurrency = tryAcquireConcurrency(clientKey, 2);
+    if (!releaseConcurrency) {
+      return NextResponse.json({ error: { code: 'CONCURRENCY_LIMITED', message: 'Já existe uma análise em andamento. Aguarde alguns segundos.', requestId } }, {
+        status: 429,
+        headers: { 'Retry-After': '5', 'Cache-Control': 'no-store' }
       });
     }
 
@@ -41,30 +57,29 @@ Instruções fundamentais:
 5. Uma frase completa deve ser classificada como survival_phrase e preservada como unidade comunicativa; não a transforme em colocação.
 6. Responda ESTRITAMENTE em JSON válido com estes campos: classification, base_form, has_possible_match, matched_existing_content, similarity_type, confidence, meaning_pt, explanation e suggested_example.`;
 
-    const parsed = await requestOpenRouterJson<AIAnalysisResult>({
+    attemptedAi = true;
+    const parsed = await requestOpenRouterJson<unknown>({
       apiKey,
       prompt,
       systemPrompt: 'Você é um assistente linguístico. Responda somente com JSON válido, sem markdown ou texto adicional.',
       maxTokens: 1200,
-      temperature: 0.1
+      temperature: 0.1,
+      jsonSchema: AI_ANALYSIS_JSON_SCHEMA,
+      onResponse: meta => { responseMeta = meta; }
     });
-
-    return NextResponse.json(parsed);
+    const result = parseAIAnalysis(parsed);
+    if (!result.ok) throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'A IA retornou uma análise inválida.');
+    logAiRequest({ requestId, route, model: responseMeta?.model || DEFAULT_OPENROUTER_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || 200, finishReason: responseMeta?.finishReason });
+    responseLogged = true;
+    return NextResponse.json(result.data, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error: unknown) {
-    console.error('Error in /api/openrouter/analyze:', error);
-    return NextResponse.json(
-      {
-        classification: 'vocabulary',
-        base_form: '',
-        has_possible_match: false,
-        matched_existing_content: null,
-        similarity_type: 'none',
-        confidence: 0,
-        meaning_pt: '',
-        explanation: 'Erro ao processar com OpenRouter. O app continuará normalmente.',
-        suggested_example: ''
-      },
-      { status: 200 }
-    );
+    if (attemptedAi && !responseLogged) {
+      const info = getApiErrorInfo(error);
+      logAiRequest({ requestId, route, model: responseMeta?.model || process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || info.status, finishReason: responseMeta?.finishReason });
+    }
+    logApiFailure(requestId, route, error);
+    return apiErrorResponse(requestId, error);
+  } finally {
+    releaseConcurrency?.();
   }
 }

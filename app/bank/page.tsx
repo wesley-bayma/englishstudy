@@ -21,6 +21,7 @@ import Link from 'next/link';
 
 export default function BankPage() {
   const [query, setQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'base' | 'inbox'>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | ContentType>('all');
   const [ankiFilter, setAnkiFilter] = useState<'all' | 'created' | 'not_created'>('all');
@@ -62,6 +63,11 @@ export default function BankPage() {
     fetchItems();
   }, [fetchItems]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setQuery(searchInput.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
   const handleToggleAnki = async (item: ContentItem) => {
     try {
       const newStatus = await toggleAnkiStatus(item.id);
@@ -88,6 +94,7 @@ export default function BankPage() {
 
   const resetFilters = () => {
     setQuery('');
+    setSearchInput('');
     setSourceFilter('all');
     setTypeFilter('all');
     setAnkiFilter('all');
@@ -104,7 +111,7 @@ export default function BankPage() {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="space-y-2">
             <span className="text-xs font-mono font-bold tracking-widest text-card-lime uppercase">
-              // Biblioteca Geral
+              {'//'} Biblioteca Geral
             </span>
             <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
               Banco de Conteúdo
@@ -128,17 +135,17 @@ export default function BankPage() {
           <input
             type="text"
             placeholder="Buscar palavra, frase, phrasal verb ou significado..."
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setPage(0);
-            }}
+              value={searchInput}
+              onChange={(e) => {
+                setSearchInput(e.target.value);
+                setPage(0);
+              }}
             className="w-full px-5 py-4 pl-12 pr-12 rounded-2xl bg-dark-bg border-2 border-dark-border focus:border-card-lime text-white text-sm font-medium focus:outline-none focus:ring-4 focus:ring-card-lime/10 transition-all placeholder:text-slate-500"
           />
           <Search className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-          {query && (
+          {searchInput && (
             <button
-              onClick={() => setQuery('')}
+              onClick={() => setSearchInput('')}
               className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
             >
               <X className="w-4 h-4" />
@@ -268,7 +275,7 @@ export default function BankPage() {
       {/* Grid Results */}
       {loading ? (
         <div className="py-20 text-center text-slate-500 font-mono text-sm">
-          // Buscando registros no banco...
+          {'//'} Buscando registros no banco...
         </div>
       ) : items.length === 0 ? (
         <div className="bg-dark-card rounded-[32px] p-12 text-center border border-dark-border space-y-3">

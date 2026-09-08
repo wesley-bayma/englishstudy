@@ -40,7 +40,8 @@ function LoginForm() {
 
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error || 'Senha incorreta. Verifique e tente novamente.');
+        const message = typeof data.error === 'string' ? data.error : data.error?.message;
+        setError(message || 'Senha incorreta. Verifique e tente novamente.');
         setIsLoading(false);
         return;
       }

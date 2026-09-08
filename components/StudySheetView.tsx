@@ -154,7 +154,7 @@ export function StudySheetView({ sheet, number }: StudySheetViewProps) {
       {sheet.connotation_usage && (
         <div className="text-xs sm:text-sm text-slate-300 bg-dark-bg p-4 rounded-2xl border border-[#232936] leading-relaxed">
           <strong className="text-card-lime font-bold block mb-0.5 font-mono text-xs uppercase tracking-wider">
-            // {isSurvivalPhrase ? 'Contexto de Uso & Função Comunicativa' : 'Uso & Particularidades'}
+            {'//'} {isSurvivalPhrase ? 'Contexto de Uso & Função Comunicativa' : 'Uso & Particularidades'}
           </strong>
           {sheet.connotation_usage}
         </div>

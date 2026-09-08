@@ -1,5 +1,16 @@
+import { ApiServiceError } from './api-errors';
+
 const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 export const DEFAULT_OPENROUTER_MODEL = '~deepseek/deepseek-v4-flash-latest';
+const DEFAULT_TIMEOUT_MS = 50_000;
+
+export function getOpenRouterApiKey(): string {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new ApiServiceError('AI_NOT_CONFIGURED', 503, 'A integração com a IA ainda não está configurada.');
+  }
+  return apiKey;
+}
 
 type OpenRouterContentPart = string | { type?: string; text?: string };
 
@@ -15,12 +26,20 @@ interface OpenRouterResponse {
   };
 }
 
-interface OpenRouterJsonRequest {
+export interface OpenRouterResponseMeta {
+  model: string;
+  status: number;
+  finishReason: string | null;
+}
+
+export interface OpenRouterJsonRequest {
   apiKey: string;
   prompt: string;
   systemPrompt?: string;
   maxTokens?: number;
   temperature?: number;
+  jsonSchema?: Record<string, unknown>;
+  onResponse?: (meta: OpenRouterResponseMeta) => void;
 }
 
 function extractContent(payload: OpenRouterResponse): string {
@@ -33,7 +52,7 @@ function extractContent(payload: OpenRouterResponse): string {
       .join('');
   }
 
-  throw new Error(payload.error?.message || 'OpenRouter retornou uma resposta vazia.');
+  throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'O provedor retornou uma resposta vazia.');
 }
 
 function parseJsonResponse<T>(content: string): T {
@@ -46,9 +65,13 @@ function parseJsonResponse<T>(content: string): T {
     const firstBrace = candidate.indexOf('{');
     const lastBrace = candidate.lastIndexOf('}');
     if (firstBrace < 0 || lastBrace <= firstBrace) {
-      throw new Error('OpenRouter não retornou JSON válido.');
+      throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'O provedor não retornou JSON válido.');
     }
-    return JSON.parse(candidate.slice(firstBrace, lastBrace + 1)) as T;
+    try {
+      return JSON.parse(candidate.slice(firstBrace, lastBrace + 1)) as T;
+    } catch {
+      throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'O provedor não retornou JSON válido.');
+    }
   }
 }
 
@@ -57,14 +80,22 @@ export async function requestOpenRouterJson<T>({
   prompt,
   systemPrompt = 'Responda somente com JSON válido, sem markdown ou texto adicional.',
   maxTokens = 4096,
-  temperature = 0.2
+  temperature = 0.2,
+  jsonSchema,
+  onResponse
 }: OpenRouterJsonRequest): Promise<T> {
   const controller = new AbortController();
-  const timeoutMs = Number(process.env.OPENROUTER_TIMEOUT_MS || 60000);
+  const configuredTimeout = Number(process.env.OPENROUTER_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
+  const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+    ? Math.min(configuredTimeout, 55_000)
+    : DEFAULT_TIMEOUT_MS;
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const model = process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL;
 
   try {
-    const response = await fetch(OPENROUTER_ENDPOINT, {
+    let response: Response;
+    try {
+      response = await fetch(OPENROUTER_ENDPOINT, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -73,28 +104,55 @@ export async function requestOpenRouterJson<T>({
         'X-Title': 'English Study Hub'
       },
       body: JSON.stringify({
-        model: process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL,
+        model,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: prompt }
         ],
-        response_format: { type: 'json_object' },
+        response_format: jsonSchema
+          ? { type: 'json_schema', json_schema: jsonSchema }
+          : { type: 'json_object' },
+        ...(jsonSchema ? { provider: { require_parameters: true } } : {}),
         max_tokens: maxTokens,
         temperature
       }),
       signal: controller.signal
-    });
-
-    const payload = await response.json() as OpenRouterResponse;
-    if (!response.ok) {
-      throw new Error(payload.error?.message || `OpenRouter respondeu HTTP ${response.status}.`);
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new ApiServiceError('UPSTREAM_TIMEOUT', 504, 'A geração demorou demais. Tente novamente.');
+      }
+      throw new ApiServiceError('UPSTREAM_ERROR', 502, 'Não foi possível conectar ao provedor de IA.');
     }
 
-    if (payload.choices?.[0]?.finish_reason === 'length') {
-      throw new Error('OpenRouter atingiu o limite de tokens antes de concluir o JSON.');
+    let payload: OpenRouterResponse;
+    try {
+      payload = await response.json() as OpenRouterResponse;
+    } catch {
+      throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'O provedor retornou uma resposta inválida.');
+    }
+
+    const finishReason = payload.choices?.[0]?.finish_reason || null;
+    onResponse?.({ model, status: response.status, finishReason });
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new ApiServiceError('UPSTREAM_AUTH', 502, 'A chave do provedor de IA foi rejeitada.', response.status);
+      }
+      if (response.status === 429) {
+        throw new ApiServiceError('UPSTREAM_RATE_LIMIT', 429, 'O provedor de IA atingiu um limite temporário.', response.status);
+      }
+      throw new ApiServiceError('UPSTREAM_ERROR', 502, 'O provedor de IA não concluiu a solicitação.', response.status);
+    }
+
+    if (finishReason === 'length') {
+      throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'A resposta do provedor foi interrompida antes de concluir.');
     }
 
     return parseJsonResponse<T>(extractContent(payload));
+  } catch (error) {
+    if (error instanceof ApiServiceError) throw error;
+    throw new ApiServiceError('UPSTREAM_ERROR', 502, 'Não foi possível concluir a geração com o provedor de IA.');
   } finally {
     clearTimeout(timeout);
   }

@@ -1,8 +1,8 @@
 import { AIAnalysisResult, CardReviewResult, ContentType, StudySheet, StudySheetCacheEntry } from './types';
-import { validateCanonicalCard } from './card-format';
 import { getDB } from './db';
+import { parseStudySheet } from './ai-validation';
 
-const STUDY_SHEET_CACHE_VERSION = 'v3-openrouter';
+const STUDY_SHEET_CACHE_VERSION = 'v4-openrouter-schema';
 const studySheetMemoryCache = new Map<string, StudySheet>();
 const studySheetRequests = new Map<string, Promise<StudySheet | null>>();
 
@@ -22,11 +22,11 @@ function getStudySheetCacheId(
 
 async function readCachedStudySheet(cacheId: string): Promise<StudySheet | null> {
   const memoryCached = studySheetMemoryCache.get(cacheId);
-  if (memoryCached) return memoryCached;
+  if (memoryCached && parseStudySheet(memoryCached).ok) return memoryCached;
 
   try {
     const cached = await getDB().study_sheets.get(cacheId);
-    if (cached?.sheet) {
+    if (cached?.sheet && parseStudySheet(cached.sheet).ok) {
       studySheetMemoryCache.set(cacheId, cached.sheet);
       return cached.sheet;
     }
@@ -52,14 +52,25 @@ async function writeCachedStudySheet(cacheId: string, sheet: StudySheet): Promis
   }
 }
 
-export function getStoredApiKey(): string {
-  if (typeof window === 'undefined') return '';
-  return localStorage.getItem('openrouter_api_key') || '';
-}
+async function parseApiResponse<T>(res: Response): Promise<T> {
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(`A API retornou uma resposta inválida (HTTP ${res.status}).`);
+  }
 
-export function setStoredApiKey(key: string): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem('openrouter_api_key', key.trim());
+  if (!res.ok) {
+    const error = data && typeof data === 'object' && 'error' in data
+      ? (data as { error?: string | { message?: string } }).error
+      : undefined;
+    const message = typeof error === 'string'
+      ? error
+      : error?.message || `A API retornou HTTP ${res.status}.`;
+    throw new Error(message);
+  }
+
+  return data as T;
 }
 
 /**
@@ -70,41 +81,12 @@ export async function analyzeWithOpenRouter(
   candidates: string[] = [],
   contextSentence: string = ''
 ): Promise<AIAnalysisResult> {
-  const apiKey = getStoredApiKey();
-
-  try {
-    const res = await fetch('/api/openrouter/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query,
-        candidates,
-        context: contextSentence,
-        apiKey
-      })
-    });
-
-    if (!res.ok) {
-      throw new Error(`OpenRouter API returned status ${res.status}`);
-    }
-
-    const data = await res.json();
-    return data;
-  } catch (error) {
-    console.warn('OpenRouter analysis failed or offline, returning fallback:', error);
-    // Graceful offline fallback
-    return {
-      classification: query.split(' ').length > 3 ? 'survival_phrase' : (query.includes(' ') ? 'phrasal_verb' : 'vocabulary'),
-      base_form: query.trim().toLowerCase(),
-      has_possible_match: false,
-      matched_existing_content: null,
-      similarity_type: 'none',
-      confidence: 0.8,
-      meaning_pt: '',
-      explanation: 'Análise offline básica (configure sua chave OpenRouter nas Configurações para análise avançada de variantes e lematização).',
-      suggested_example: contextSentence || ''
-    };
-  }
+  const res = await fetch('/api/openrouter/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, candidates, context: contextSentence })
+  });
+  return parseApiResponse<AIAnalysisResult>(res);
 }
 
 /**
@@ -115,40 +97,12 @@ export async function reviewCardWithOpenRouter(
   back: string,
   type?: ContentType
 ): Promise<CardReviewResult> {
-  const apiKey = getStoredApiKey();
-
-  try {
-    const res = await fetch('/api/openrouter/review-card', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        front,
-        back,
-        type,
-        apiKey
-      })
-    });
-
-    if (!res.ok) {
-      throw new Error(`OpenRouter API returned status ${res.status}`);
-    }
-
-    const data = await res.json();
-    return data;
-  } catch (error) {
-    console.warn('OpenRouter card review failed or offline, returning fallback evaluation:', error);
-    
-    const obs = validateCanonicalCard(front, back, type);
-
-
-    return {
-      status: obs.length === 0 ? 'good' : (obs.length === 1 ? 'improvable' : 'bad'),
-      status_label: obs.length === 0 ? '✅ Bom' : (obs.length === 1 ? '⚠️ Pode melhorar' : '❌ Problema importante'),
-      score: obs.length === 0 ? 95 : (obs.length === 1 ? 75 : 50),
-      observations: obs.length > 0 ? obs : ['Estrutura atende às regras canônicas de recuperação ativa.'],
-      summary: obs.length === 0 ? 'Card bem estruturado!' : 'Alguns ajustes são necessários.'
-    };
-  }
+  const res = await fetch('/api/openrouter/review-card', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ front, back, type })
+  });
+  return parseApiResponse<CardReviewResult>(res);
 }
 
 /**
@@ -158,8 +112,7 @@ export async function getStudySheetWithOpenRouter(
   term: string,
   type: ContentType = 'vocabulary',
   meaningPt: string = '',
-  contextSentence: string = '',
-  signal?: AbortSignal
+  contextSentence: string = ''
 ): Promise<StudySheet | null> {
   const cacheId = getStudySheetCacheId(term, type, meaningPt, contextSentence);
   const cached = await readCachedStudySheet(cacheId);
@@ -167,8 +120,6 @@ export async function getStudySheetWithOpenRouter(
 
   const pendingRequest = studySheetRequests.get(cacheId);
   if (pendingRequest) return pendingRequest;
-
-  const apiKey = getStoredApiKey();
 
   const request = (async (): Promise<StudySheet | null> => {
     try {
@@ -179,27 +130,15 @@ export async function getStudySheetWithOpenRouter(
           term,
           type,
           meaningPt,
-          contextSentence,
-          apiKey
+          contextSentence
         }),
-        signal
       });
 
       if (!res.ok) {
-        let message = `Study sheet API error status ${res.status}`;
-        try {
-          const errorBody = await res.json() as { error?: string | { message?: string } };
-          if (typeof errorBody.error === 'string') message = errorBody.error;
-          if (errorBody.error && typeof errorBody.error === 'object' && errorBody.error.message) {
-            message = errorBody.error.message;
-          }
-        } catch {
-          // Keep the HTTP status when the server did not return JSON.
-        }
-        throw new Error(message);
+        return parseApiResponse<StudySheet>(res);
       }
 
-      const data = await res.json() as StudySheet;
+      const data = await parseApiResponse<StudySheet>(res);
       void writeCachedStudySheet(cacheId, data);
       return data;
     } catch (error) {

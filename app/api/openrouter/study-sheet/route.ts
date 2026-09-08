@@ -1,10 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { StudySheet } from '../../../../lib/types';
-import { validateStudySheet } from '../../../../lib/card-format';
-import { requestOpenRouterJson } from '../../../../lib/openrouter-client';
+import { DEFAULT_OPENROUTER_MODEL, getOpenRouterApiKey, requestOpenRouterJson, OpenRouterResponseMeta } from '../../../../lib/openrouter-client';
+import { STUDY_SHEET_JSON_SCHEMA } from '../../../../lib/ai-schemas';
+import { validateParsedStudySheet } from '../../../../lib/ai-validation';
+import { ApiServiceError, apiErrorResponse, createRequestId, getApiErrorInfo, logAiRequest, logApiFailure } from '../../../../lib/api-errors';
+import { assertAllowedFields, getClientAddress, optionalContentType, optionalString, parseJsonBody, requiredString } from '../../../../lib/api-validation';
+import { checkRateLimit, tryAcquireConcurrency } from '../../../../lib/rate-limit';
 
 // Pre-curated instant entries matching user's canonical examples
 const CURATED_SHEETS: Record<string, any> = {
+  cheap: {
+    term: 'cheap',
+    type: 'vocabulary',
+    ipa: '/tʃiːp/',
+    grammatical_class: 'adjetivo',
+    translation: 'barato, barata',
+    connotation_usage: 'cheap descreve algo que custa pouco. Dependendo do contexto, também pode sugerir baixa qualidade; low-cost é uma alternativa mais neutra em contextos formais.',
+    useful_structures: ['cheap + substantivo: a cheap hotel', 'be + cheap: The ticket is cheap.'],
+    collocations: [
+      { en: 'cheap hotel', pt: 'hotel barato' },
+      { en: 'cheap flight', pt: 'voo barato' },
+      { en: 'cheap ticket', pt: 'passagem barata' },
+      { en: 'cheap meal', pt: 'refeição barata' }
+    ],
+    examples: [
+      { en: 'We found a cheap hotel near the station.', pt: 'Encontramos um hotel barato perto da estação.' },
+      { en: 'Is there a cheap flight to London?', pt: 'Existe um voo barato para Londres?' },
+      { en: 'This restaurant serves cheap meals.', pt: 'Este restaurante serve refeições baratas.' }
+    ],
+    related_words: ['expensive (caro)', 'affordable (com preço acessível)', 'inexpensive (barato)'],
+    tip_warning: '💡 cheap é o oposto de expensive. Para elogiar um preço acessível sem sugerir baixa qualidade, affordable costuma soar melhor.'
+  },
   motivation: {
     term: 'motivation',
     type: 'vocabulary',
@@ -284,43 +310,69 @@ const CURATED_SHEETS: Record<string, any> = {
   }
 };
 
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
+  const requestId = createRequestId();
+  const startedAt = Date.now();
+  const route = '/api/openrouter/study-sheet';
+  let releaseConcurrency: (() => void) | null = null;
+  let responseMeta: OpenRouterResponseMeta | undefined;
+  let responseLogged = false;
+  let attemptedAi = false;
+
   try {
-    const {
-      term,
-      type = 'vocabulary',
-      meaningPt = '',
-      contextSentence = '',
-      apiKey: userApiKey
-    } = await req.json();
+    const body = await parseJsonBody(req, 16_384);
+    assertAllowedFields(body, ['term', 'type', 'meaningPt', 'contextSentence']);
+    const term = requiredString(body, 'term', { max: 200 });
+    const type = optionalContentType(body, 'type') || 'vocabulary';
+    const meaningPt = optionalString(body, 'meaningPt', 500);
+    const contextSentence = optionalString(body, 'contextSentence', 800);
 
-    if (!term) {
-      return NextResponse.json({ error: 'Term is required' }, { status: 400 });
-    }
-
-    const cleanTerm = term.trim().toLowerCase();
-    const looksLikeCompleteSentence = term.trim().split(/\s+/).length >= 3 && /[?!.]$/.test(term.trim());
+    const cleanTerm = term.toLowerCase();
+    const looksLikeCompleteSentence = term.split(/\s+/).length >= 3 && /[?!.]$/.test(term);
     const isSurvivalPhrase = type === 'survival_phrase' || type === 'personal_phrase' || looksLikeCompleteSentence;
     const isPhrasalVerb = type === 'phrasal_verb';
 
-    // Check curated database first
+    // Check curated database first. Curated entries do not spend provider credits.
     if (CURATED_SHEETS[cleanTerm]) {
       return NextResponse.json({
         ...CURATED_SHEETS[cleanTerm],
         isCurated: true
+      }, { headers: { 'Cache-Control': 'private, max-age=300' } });
+    }
+
+    const apiKey = getOpenRouterApiKey();
+
+    const clientKey = `${route}:${getClientAddress(req)}`;
+    const rateLimit = checkRateLimit(clientKey, 20, 60_000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json({
+        error: {
+          code: 'RATE_LIMITED',
+          message: 'Muitas gerações em pouco tempo. Tente novamente mais tarde.',
+          requestId
+        }
+      }, {
+        status: 429,
+        headers: { 'Retry-After': String(rateLimit.retryAfterSeconds), 'Cache-Control': 'no-store' }
       });
     }
 
-    const apiKey = process.env.OPENROUTER_API_KEY || userApiKey;
+    releaseConcurrency = tryAcquireConcurrency(clientKey, 2);
+    if (!releaseConcurrency) {
+      return NextResponse.json({
+        error: {
+          code: 'CONCURRENCY_LIMITED',
+          message: 'Já existe uma geração em andamento. Aguarde alguns segundos.',
+          requestId
+        }
+      }, { status: 429, headers: { 'Retry-After': '5', 'Cache-Control': 'no-store' } });
+    }
 
     // 1. SURVIVAL PHRASE HANDLER
     if (isSurvivalPhrase) {
-      if (!apiKey) {
-        return NextResponse.json({
-          error: 'Não há dados suficientes para gerar uma ficha natural sem a API do OpenRouter.'
-        }, { status: 503 });
-      }
-
       const prompt = `Você é um especialista em ensino de inglês comunicativo focado em Frases de Sobrevivência para o Anki.
 Analise a FRASE DE SOBREVIVÊNCIA COMPLETA: "${term}".
 Tradução sugerida: "${meaningPt}".
@@ -337,30 +389,24 @@ GERE UMA FICHA DE FRASE DE SOBREVIVÊNCIA:
 6. Escolha de UMA ÚNICA LACUNA ESTRATÉGICA com alto valor comunicativo (ex: em "Could you speak more slowly?", esconda "more slowly" -> "Could you speak (_____)?").
 7. Dica de ouro ou atenção cultural/prática.`;
 
-      const parsed = await requestOpenRouterJson<StudySheet>({
+      attemptedAi = true;
+      const parsed = await requestOpenRouterJson<unknown>({
         apiKey,
         prompt,
         systemPrompt: 'Você é um especialista em ensino de inglês. Responda somente com JSON válido, sem markdown ou texto adicional.',
         maxTokens: 2400,
-        temperature: 0.1
+        temperature: 0.1,
+        jsonSchema: STUDY_SHEET_JSON_SCHEMA,
+        onResponse: meta => { responseMeta = meta; }
       });
-      const validationErrors = validateStudySheet({ ...parsed, type: 'survival_phrase' });
-      if (validationErrors.length > 0) {
-        return NextResponse.json({
-          error: 'A IA retornou uma ficha que não atende às regras pedagógicas.',
-          details: validationErrors
-        }, { status: 422 });
-      }
-      return NextResponse.json({ ...parsed, type: 'survival_phrase', isCurated: false });
+      const result = validateParsedStudySheet(parsed, 'survival_phrase');
+      if (!result.ok) throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'A IA retornou uma ficha inválida.');
+      logAiRequest({ requestId, route, model: responseMeta?.model || DEFAULT_OPENROUTER_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || 200, finishReason: responseMeta?.finishReason });
+      responseLogged = true;
+      return NextResponse.json({ ...result.data, type: 'survival_phrase', isCurated: false }, { headers: { 'Cache-Control': 'no-store' } });
     }
 
     // 2. VOCABULARY & PHRASAL VERBS HANDLER
-    if (!apiKey) {
-      return NextResponse.json({
-        error: 'Não há dados suficientes para gerar uma ficha natural sem a API do OpenRouter.'
-      }, { status: 503 });
-    }
-
     const prompt = `Você é um professor de inglês comunicativo, especializado em aprendizagem ativa para a Camada do Viajante (A1/A2).
 Analise "${term}" como ${isPhrasalVerb ? 'PHRASAL VERB' : 'VOCABULÁRIO'}.
 Tradução sugerida pelo aluno: "${meaningPt}".
@@ -376,25 +422,29 @@ REGRAS OBRIGATÓRIAS:
 7. Gere IPA, classe gramatical, significado principal, uso, estruturas, colocações úteis, exemplos naturais, família de palavras e uma dica curta.
 8. Responda somente JSON conforme o schema. Campos sem informação segura devem ser arrays vazios; não use placeholders.`;
 
-    const parsed = await requestOpenRouterJson<StudySheet>({
+    attemptedAi = true;
+    const parsed = await requestOpenRouterJson<unknown>({
       apiKey,
       prompt,
       systemPrompt: 'Você é um professor de inglês comunicativo. Responda somente com JSON válido, sem markdown ou texto adicional.',
       maxTokens: 3000,
-      temperature: 0.1
+      temperature: 0.1,
+      jsonSchema: STUDY_SHEET_JSON_SCHEMA,
+      onResponse: meta => { responseMeta = meta; }
     });
-    const validationErrors = validateStudySheet({ ...parsed, type });
-    if (validationErrors.length > 0) {
-      return NextResponse.json({
-        error: 'A IA retornou uma ficha que não atende às regras pedagógicas.',
-        details: validationErrors
-      }, { status: 422 });
+    const result = validateParsedStudySheet(parsed, type);
+    if (!result.ok) throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'A IA retornou uma ficha inválida.');
+    logAiRequest({ requestId, route, model: responseMeta?.model || DEFAULT_OPENROUTER_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || 200, finishReason: responseMeta?.finishReason });
+    responseLogged = true;
+    return NextResponse.json({ ...result.data, type, isCurated: false }, { headers: { 'Cache-Control': 'no-store' } });
+  } catch (error: unknown) {
+    if (attemptedAi && !responseLogged) {
+      const info = getApiErrorInfo(error);
+      logAiRequest({ requestId, route, model: responseMeta?.model || process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || info.status, finishReason: responseMeta?.finishReason });
     }
-    return NextResponse.json({ ...parsed, type, isCurated: false });
-  } catch (error: any) {
-    console.error('Error generating study sheet with OpenRouter:', error);
-    return NextResponse.json({
-      error: error.message || 'Failed to generate study sheet'
-    }, { status: 500 });
+    logApiFailure(requestId, route, error);
+    return apiErrorResponse(requestId, error);
+  } finally {
+    releaseConcurrency?.();
   }
 }

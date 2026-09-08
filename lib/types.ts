@@ -86,7 +86,6 @@ export interface CardReviewResult {
 }
 
 export interface AppSettings {
-  openrouter_api_key: string;
   daily_card_goal: number;
   daily_vocab_goal: number;
   daily_phrase_goal: number;

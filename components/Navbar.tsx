@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   CalendarDays, 
   PlusCircle, 
@@ -10,15 +10,26 @@ import {
   BarChart3, 
   CheckSquare,
   Sparkles,
-  Layers
+  Layers,
+  LogOut
 } from 'lucide-react';
 
 export function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
 
   if (pathname === '/login') {
     return null;
   }
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } finally {
+      router.replace('/login');
+      router.refresh();
+    }
+  };
 
   const navItems = [
     { label: 'Hoje', href: '/', icon: CalendarDays },
@@ -75,6 +86,15 @@ export function Navbar() {
               );
             })}
           </nav>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-3 py-2 rounded-full text-xs font-bold text-slate-400 hover:text-white hover:bg-dark-card transition-all"
+            aria-label="Sair da aplicação"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">Sair</span>
+          </button>
         </div>
       </header>
 

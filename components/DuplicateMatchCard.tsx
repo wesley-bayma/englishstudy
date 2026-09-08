@@ -45,7 +45,7 @@ export function DuplicateMatchCard({
           </div>
           <div className="flex-1">
             <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-rose-400 block mb-1">
-              // Já Existe no seu Banco
+              {'//'} Já Existe no seu Banco
             </span>
             <h3 className="text-2xl font-black text-white tracking-tight">
               &ldquo;{exactMatch.content}&rdquo; já está cadastrado
@@ -104,7 +104,7 @@ export function DuplicateMatchCard({
           </div>
           <div className="flex-1">
             <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-card-amber block mb-1">
-              // Variante ou Flexão Identificada
+              {'//'} Variante ou Flexão Identificada
             </span>
             <h3 className="text-xl font-black text-white tracking-tight">
               &ldquo;{inputQuery}&rdquo; é uma flexão de &ldquo;{existingCandidate.content}&rdquo;
@@ -169,7 +169,7 @@ export function DuplicateMatchCard({
           </div>
           <div className="flex-1">
             <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-card-lime block mb-1">
-              // Frase Semelhante Encontrada
+              {'//'} Frase Semelhante Encontrada
             </span>
             <h3 className="text-xl font-black text-white tracking-tight">
               Função comunicativa equivalente no banco

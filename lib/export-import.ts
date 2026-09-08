@@ -12,6 +12,10 @@ export interface ImportValidationReport {
   valid_items: ContentItem[];
 }
 
+export const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
+export const MAX_IMPORT_ROWS = 20_000;
+const MAX_TEXT_FIELD_LENGTH = 2_000;
+
 /**
  * Exports all database records as a JSON string
  */
@@ -113,12 +117,22 @@ export async function validateImportData(fileContent: string, format: 'json' | '
     valid_items: []
   };
 
+  if (new TextEncoder().encode(fileContent).byteLength > MAX_IMPORT_BYTES) {
+    report.errors.push({ row: 0, error: 'O arquivo excede o limite de 5 MB.' });
+    return report;
+  }
+
   let rawList: any[] = [];
 
   if (format === 'json') {
     try {
       const parsed = JSON.parse(fileContent);
-      rawList = Array.isArray(parsed) ? parsed : (parsed.items || []);
+      if (Array.isArray(parsed)) rawList = parsed;
+      else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.items)) rawList = parsed.items;
+      else {
+        report.errors.push({ row: 0, error: 'O JSON precisa ser uma lista ou conter o campo "items".' });
+        return report;
+      }
     } catch (e: any) {
       report.errors.push({ row: 0, error: 'JSON inválido ou corrompido: ' + e.message });
       return report;
@@ -128,6 +142,10 @@ export async function validateImportData(fileContent: string, format: 'json' | '
     const lines = fileContent.split(/\r?\n/).filter(l => l.trim().length > 0);
     if (lines.length < 2) {
       report.errors.push({ row: 0, error: 'Arquivo CSV vazio ou sem cabeçalho.' });
+      return report;
+    }
+    if (lines.length - 1 > MAX_IMPORT_ROWS) {
+      report.errors.push({ row: 0, error: 'O arquivo excede o limite de 20.000 linhas.' });
       return report;
     }
 
@@ -143,21 +161,88 @@ export async function validateImportData(fileContent: string, format: 'json' | '
   }
 
   report.total_rows = rawList.length;
+  if (rawList.length > MAX_IMPORT_ROWS) {
+    report.errors.push({ row: 0, error: 'O arquivo excede o limite de 20.000 registros.' });
+    return report;
+  }
+
+  const validSources = new Set<ContentSource>(['base', 'youtube', 'podcast', 'audio', 'book', 'movie', 'series', 'conversation', 'other']);
+  const seenIds = new Set<string>();
 
   rawList.forEach((raw, index) => {
     const rowNum = index + 1;
-    const content = (raw.content || raw.word || raw.phrase || '').trim();
-
-    if (!content) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
       report.invalid_count++;
-      report.errors.push({ row: rowNum, error: 'Campo "content" está vazio.', data: raw });
+      report.errors.push({ row: rowNum, error: 'Registro inválido.', data: raw });
       return;
     }
 
-    const rawType = (raw.type || 'vocabulary').trim().toLowerCase();
-    const type: ContentType = validTypes.has(rawType as ContentType) ? (rawType as ContentType) : 'vocabulary';
-    const source: ContentSource = raw.source || 'base';
+    const contentValue = raw.content ?? raw.word ?? raw.phrase;
+    const content = typeof contentValue === 'string' ? contentValue.trim() : '';
+
+    if (!content || content.length > MAX_TEXT_FIELD_LENGTH) {
+      report.invalid_count++;
+      report.errors.push({ row: rowNum, error: 'Campo "content" vazio ou grande demais.', data: raw });
+      return;
+    }
+
+    const rawType = raw.type === undefined || raw.type === '' ? 'vocabulary' : raw.type;
+    const type = typeof rawType === 'string' ? rawType.trim().toLowerCase() : '';
+    if (!validTypes.has(type as ContentType)) {
+      report.invalid_count++;
+      report.errors.push({ row: rowNum, error: 'Tipo de conteúdo inválido.', data: raw });
+      return;
+    }
+
+    const rawSource = raw.source === undefined || raw.source === '' ? 'base' : raw.source;
+    const source = typeof rawSource === 'string' ? rawSource.trim().toLowerCase() : '';
+    if (!validSources.has(source as ContentSource)) {
+      report.invalid_count++;
+      report.errors.push({ row: rowNum, error: 'Fonte do conteúdo inválida.', data: raw });
+      return;
+    }
+
     const normalized = normalizeContent(content);
+    const id = raw.id === undefined || raw.id === '' ? `import_${Date.now()}_${index}` : raw.id;
+    if (typeof id !== 'string' || id.length === 0 || id.length > 200 || seenIds.has(id)) {
+      report.invalid_count++;
+      report.errors.push({ row: rowNum, error: 'ID vazio, grande demais ou repetido no arquivo.', data: raw });
+      return;
+    }
+
+    const numberValue = (value: unknown, fallback: number | null): number | null => {
+      if (value === undefined || value === null || value === '') return fallback;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+    };
+    const originalOrder = numberValue(raw.original_order, null);
+    const timesEncountered = numberValue(raw.times_encountered, 0);
+    if ((raw.original_order !== undefined && raw.original_order !== '' && originalOrder === null) ||
+      (raw.times_encountered !== undefined && raw.times_encountered !== '' && timesEncountered === null)) {
+      report.invalid_count++;
+      report.errors.push({ row: rowNum, error: 'Campos numéricos inválidos.', data: raw });
+      return;
+    }
+
+    const textValue = (value: unknown, fallback: string | null = null): string | null => {
+      if (value === undefined || value === null || value === '') return fallback;
+      return typeof value === 'string' && value.length <= MAX_TEXT_FIELD_LENGTH ? value : null;
+    };
+    const sourceDetail = textValue(raw.source_detail);
+    const sourceUrl = textValue(raw.source_url);
+    const meaning = textValue(raw.meaning_pt ?? raw.translation);
+    const example = textValue(raw.example);
+    const baseForm = textValue(raw.base_form, content);
+    const notes = textValue(raw.notes);
+    if (sourceDetail === null && raw.source_detail !== undefined && raw.source_detail !== null && raw.source_detail !== '' ||
+      sourceUrl === null && raw.source_url !== undefined && raw.source_url !== null && raw.source_url !== '' ||
+      meaning === null && (raw.meaning_pt !== undefined || raw.translation !== undefined) ||
+      example === null && raw.example !== undefined && raw.example !== null && raw.example !== '' ||
+      baseForm === null || notes === null && raw.notes !== undefined && raw.notes !== null && raw.notes !== '') {
+      report.invalid_count++;
+      report.errors.push({ row: rowNum, error: 'Um dos campos de texto excede o limite permitido.', data: raw });
+      return;
+    }
 
     const isDuplicate = existingNormalizedMap.has(normalized);
     if (isDuplicate) {
@@ -165,26 +250,28 @@ export async function validateImportData(fileContent: string, format: 'json' | '
     } else {
       report.new_count++;
     }
+    existingNormalizedMap.add(normalized);
+    seenIds.add(id);
 
     const item: ContentItem = {
-      id: raw.id || `import_${Date.now()}_${index}`,
+      id,
       content,
       normalized_content: normalized,
-      type,
-      source,
-      source_detail: raw.source_detail || null,
-      source_url: raw.source_url || null,
-      timestamp_marker: raw.timestamp_marker || null,
-      original_order: raw.original_order ? Number(raw.original_order) : null,
+      type: type as ContentType,
+      source: source as ContentSource,
+      source_detail: sourceDetail,
+      source_url: sourceUrl,
+      timestamp_marker: textValue(raw.timestamp_marker),
+      original_order: originalOrder,
       anki_status: raw.anki_status === 'created' ? 'created' : 'not_created',
-      anki_created_at: raw.anki_created_at || null,
-      date_added: raw.date_added || new Date().toISOString(),
-      times_encountered: raw.times_encountered ? Number(raw.times_encountered) : 0,
-      last_encountered: raw.last_encountered || null,
-      meaning_pt: raw.meaning_pt || raw.translation || null,
-      example: raw.example || null,
-      base_form: raw.base_form || content,
-      notes: raw.notes || null
+      anki_created_at: textValue(raw.anki_created_at),
+      date_added: textValue(raw.date_added, new Date().toISOString()) || new Date().toISOString(),
+      times_encountered: timesEncountered || 0,
+      last_encountered: textValue(raw.last_encountered),
+      meaning_pt: meaning,
+      example,
+      base_form: baseForm || content,
+      notes
     };
 
     report.valid_count++;
@@ -202,12 +289,19 @@ export async function commitImport(items: ContentItem[], skipDuplicates: boolean
   const existing = await db.content_items.toArray();
   const existingSet = new Set(existing.map(i => i.normalized_content));
 
-  let toInsert = items;
-  if (skipDuplicates) {
-    toInsert = items.filter(i => !existingSet.has(i.normalized_content));
-  }
+  const existingIds = new Set(existing.map(item => item.id));
+  const seenIds = new Set<string>();
+  const toInsert = items.filter(item => {
+    if (seenIds.has(item.id)) return false;
+    seenIds.add(item.id);
+    if (existingIds.has(item.id)) return false;
+    if (skipDuplicates && existingSet.has(item.normalized_content)) return false;
+    existingSet.add(item.normalized_content);
+    existingIds.add(item.id);
+    return true;
+  });
 
-  await db.content_items.bulkPut(toInsert);
+  await db.content_items.bulkAdd(toInsert);
   return toInsert.length;
 }
 
