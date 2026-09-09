@@ -68,7 +68,7 @@ REGRAS CANÔNICAS DE AVALIAÇÃO:
 PADRÕES ESPERADOS PELO USUÁRIO:
 - Vocabulário: Frente "I forgot my (carteira) again." -> Verso "I forgot my wallet again.\n/ˈwɑː.lət/\nEsqueci minha carteira de novo."
 - Frase: Frente "Could you speak (..?)?\nVocê poderia falar mais devagar?" -> Verso "Could you speak more slowly?"
-- Phrasal Verb: Frente "I need to (PV: descobrir) the truth." -> Verso "find out — finding out — found out\nI need to find out the truth."
+- Phrasal Verb: Frente "I need to (PV: descobrir) the truth." -> Verso "I need to find out the truth.\nPreciso descobrir a verdade."
 
 Avalie o card segundo essas regras e retorne no máximo 3 observações concisas e diretas (sem textos longos!). Responda ESTRITAMENTE em JSON válido com os campos status, status_label, score, observations e summary.`;
 

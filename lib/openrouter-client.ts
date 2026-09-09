@@ -41,6 +41,7 @@ export interface OpenRouterJsonRequest {
   maxTokens?: number;
   temperature?: number;
   jsonSchema?: Record<string, unknown>;
+  validateResponse?: (value: unknown) => boolean;
   onResponse?: (meta: OpenRouterResponseMeta) => void;
   deadlineAt?: number;
   maxTimeoutMs?: number;
@@ -102,6 +103,7 @@ export async function requestOpenRouterJson<T>({
   maxTokens = 4096,
   temperature = 0.2,
   jsonSchema,
+  validateResponse,
   onResponse,
   deadlineAt,
   maxTimeoutMs = 55_000
@@ -169,7 +171,11 @@ export async function requestOpenRouterJson<T>({
       throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'A resposta do provedor foi interrompida antes de concluir.');
     }
 
-    return parseJsonResponse<T>(extractContent(payload));
+    const parsed = parseJsonResponse<T>(extractContent(payload));
+    if (validateResponse && !validateResponse(parsed)) {
+      throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'O provedor retornou uma ficha incompatível com o formato esperado.');
+    }
+    return parsed;
   } catch (error) {
     if (error instanceof ApiServiceError) throw error;
     throw new ApiServiceError('UPSTREAM_ERROR', 502, 'Não foi possível concluir a geração com o provedor de IA.');

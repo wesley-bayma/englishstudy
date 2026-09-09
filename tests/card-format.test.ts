@@ -94,7 +94,7 @@ describe('canonical Anki card format', () => {
       }
     }))).toEqual({
       front: 'I need to (PV: descobrir) the truth.',
-      back: 'find out — finding out — found out\nI need to find out the truth.'
+      back: 'I need to find out the truth.\nPreciso descobrir a verdade.'
     });
   });
 
@@ -109,6 +109,12 @@ describe('canonical Anki card format', () => {
       'Could you speak (..?)?\nVocê poderia falar mais devagar?',
       'Could you speak more slowly?',
       'survival_phrase'
+    )).toEqual([]);
+
+    expect(validateCanonicalCard(
+      'I need to (PV: descobrir) the truth.',
+      'I need to find out the truth.\nPreciso descobrir a verdade.',
+      'phrasal_verb'
     )).toEqual([]);
   });
 
@@ -170,6 +176,14 @@ describe('canonical Anki card format', () => {
       'I forgot my wallet again.\n/ˈwɑː.lət/\n[sound:wallet.mp3]',
       'vocabulary'
     )).toContain('O card canônico deve conter somente texto; não inclua áudio nem campos reversos do Anki.');
+  });
+
+  it('rejects the legacy phrasal-verb forms line and accepts only English plus translation', () => {
+    expect(validateCanonicalCard(
+      'I need to (PV: descobrir) the truth.',
+      'find out — finding out — found out\nI need to find out the truth.',
+      'phrasal_verb'
+    )).toContain('O verso do phrasal verb deve conter somente a frase completa em inglês e a tradução.');
   });
 
   it('formats the complete card for manual clipboard copying without reversed fields', () => {

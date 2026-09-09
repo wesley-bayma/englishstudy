@@ -96,6 +96,26 @@ describe('Gemini client', () => {
     expect(fetchMock.mock.calls[1][0]).toContain('openrouter.ai');
   });
 
+  it('uses OpenRouter when Gemini returns JSON that fails the application validator', async () => {
+    const { requestAiJson } = await import('../lib/gemini-client');
+    process.env.GEMINI_API_KEY = 'gemini-key';
+    process.env.OPENROUTER_API_KEY = 'openrouter-key';
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(response({
+        candidates: [{ content: { parts: [{ text: '{"ok":false}' }] }, finishReason: 'STOP' }]
+      }))
+      .mockResolvedValueOnce(response({
+        choices: [{ message: { content: '{"ok":true}' }, finish_reason: 'stop' }]
+      }));
+    globalThis.fetch = fetchMock;
+
+    await expect(requestAiJson<{ ok: boolean }>({
+      prompt: 'test',
+      validateResponse: value => (value as { ok?: boolean }).ok === true
+    })).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('does not start a fallback after the shared 52-second request deadline has elapsed', async () => {
     const { requestAiJson } = await import('../lib/gemini-client');
     process.env.GEMINI_API_KEY = 'gemini-key';

@@ -39,6 +39,7 @@ export interface GeminiJsonRequest {
   maxTokens?: number;
   temperature?: number;
   jsonSchema?: Record<string, unknown>;
+  validateResponse?: (value: unknown) => boolean;
   onResponse?: (meta: GeminiResponseMeta) => void;
   deadlineAt?: number;
   maxTimeoutMs?: number;
@@ -119,6 +120,7 @@ export async function requestGeminiJson<T>({
   maxTokens = 4096,
   temperature = 0.2,
   jsonSchema,
+  validateResponse,
   onResponse,
   deadlineAt,
   maxTimeoutMs = 55_000
@@ -181,7 +183,11 @@ export async function requestGeminiJson<T>({
       throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'A resposta do provedor foi interrompida antes de concluir.');
     }
 
-    return parseJsonResponse<T>(extractContent(payload));
+    const parsed = parseJsonResponse<T>(extractContent(payload));
+    if (validateResponse && !validateResponse(parsed)) {
+      throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'O provedor retornou uma ficha incompatível com o formato esperado.');
+    }
+    return parsed;
   } catch (error) {
     if (error instanceof ApiServiceError) throw error;
     throw new ApiServiceError('UPSTREAM_ERROR', 502, 'Não foi possível concluir a geração com o provedor de IA.');
@@ -201,9 +207,10 @@ function canUseOpenRouterFallback(error: unknown): boolean {
 }
 
 /**
- * Uses Gemini first and retries once with the OpenRouter fallback only when
- * the AI provider itself fails. Input, authentication, and rate-limit errors
- * from this application never spend a second provider request.
+ * Uses Gemini first and retries once with the OpenRouter fallback when the
+ * provider fails or its response does not satisfy the caller's validator.
+ * Input, authentication, and rate-limit errors from this application never
+ * spend a second provider request.
  */
 export async function requestAiJson<T>(request: Omit<GeminiJsonRequest, 'apiKey'>): Promise<T> {
   const deadlineAt = request.deadlineAt || Date.now() + AI_ROUTE_DEADLINE_MS;
