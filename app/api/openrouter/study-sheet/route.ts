@@ -420,7 +420,7 @@ REGRAS OBRIGATÓRIAS:
 5. Para PHRASAL VERB, mantenha o sentido escolhido em todos os exemplos e informe as formas base, gerúndio e passado, além de estrutura, transitividade, separabilidade e posição de pronomes.
 6. Não traduza phrasal verbs palavra por palavra.
 7. Gere IPA, classe gramatical, significado principal, uso, estruturas, colocações úteis, exemplos naturais, família de palavras e uma dica curta.
-8. O card textual será montado pela aplicação para o tipo Basic do Anki: vocabulário usa uma dica em português na frente e "termo IPA" mais a frase completa no verso; phrasal verb usa "PV: significado" na frente e "base — gerund — past" mais a frase completa no verso. Não gere áudio, campos reversos ou markup do Anki.
+8. O card textual será montado pela aplicação para o tipo Basic do Anki: vocabulário usa uma dica em português na frente e, no verso, a frase completa em inglês, o IPA e a tradução da frase; phrasal verb usa "PV: significado" na frente e "base — gerund — past" mais a frase completa no verso. Não gere áudio, campos reversos ou markup do Anki.
 9. Responda somente JSON conforme o schema. Campos sem informação segura devem ser arrays vazios; não use placeholders.`;
 
     attemptedAi = true;

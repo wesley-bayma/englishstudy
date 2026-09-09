@@ -105,7 +105,7 @@ export function buildCanonicalCard(sheet: StudySheet): CanonicalCard | null {
     front: frontSentence,
     back: isPhrasalVerb(sheet)
       ? `${forms!.base.trim()} — ${forms!.gerund.trim()} — ${forms!.past.trim()}\n${backSentence}`
-      : `${sheet.term.trim()} ${sheet.ipa.trim()}\n${backSentence}`
+      : `${backSentence}\n${sheet.ipa.trim()}\n${example.pt.trim()}`
   };
   return validateCanonicalCard(card.front, card.back, sheet.type).length === 0 ? card : null;
 }
@@ -140,17 +140,23 @@ export function validateCanonicalCard(
   } else {
     const hints = front.match(PARENTHETICAL_PATTERN) || [];
     if (hints.length !== 1) issues.push('A frente precisa conter uma única pista entre parênteses.');
-    if (backLines[1]?.match(PARENTHETICAL_PATTERN)) {
-      issues.push('A frase em inglês do verso não deve conter o termo entre parênteses.');
-    }
     if (isPv) {
+      if (backLines[1]?.match(PARENTHETICAL_PATTERN)) {
+        issues.push('A frase em inglês do verso não deve conter o termo entre parênteses.');
+      }
       if (!front.includes('PV:')) issues.push('A frente do phrasal verb deve indicar o sentido com “PV:”.');
       const forms = backLines[0]?.split(' — ') || [];
       if (backLines.length !== 2 || forms.length !== 3 || forms.some(form => !form.trim())) {
         issues.push('O verso do phrasal verb deve conter as formas base, gerúndio e passado e a frase em inglês.');
       }
-    } else if (front.includes('PV:') || backLines.length !== 2 || !backLines[0]?.match(/\/[^\/\n]+\//)) {
-      issues.push('O verso do vocabulário deve conter “termo IPA” e a frase completa em inglês.');
+    } else if (
+      front.includes('PV:') ||
+      backLines.length !== 3 ||
+      backLines[0]?.match(PARENTHETICAL_PATTERN) ||
+      !backLines[1]?.match(/^\/[^\/\n]+\/$/) ||
+      !backLines[2]
+    ) {
+      issues.push('O verso do vocabulário deve conter frase completa, IPA e tradução da frase.');
     }
 
   }

@@ -16,7 +16,7 @@ function sheet(overrides: Partial<StudySheet>): StudySheet {
 }
 
 describe('canonical Anki card format', () => {
-  it('uses the manual vocabulary format: Portuguese hint, term with IPA and full English sentence', () => {
+  it('uses the manual vocabulary format: Portuguese hint, sentence, IPA and sentence translation', () => {
     expect(buildCanonicalCard(sheet({
       term: 'wallet',
       ipa: '/ˈwɑː.lət/',
@@ -24,7 +24,7 @@ describe('canonical Anki card format', () => {
       examples: [{ en: 'I forgot my wallet again.', pt: 'Esqueci minha carteira de novo.' }]
     }))).toEqual({
       front: 'I forgot my (carteira) again.',
-      back: 'wallet /ˈwɑː.lət/\nI forgot my wallet again.'
+      back: 'I forgot my wallet again.\n/ˈwɑː.lət/\nEsqueci minha carteira de novo.'
     });
   });
 
@@ -36,7 +36,7 @@ describe('canonical Anki card format', () => {
       ]
     }))).toEqual({
       front: 'She bought an (maçã).',
-      back: 'apple /ˈæpəl/\nShe bought an apple.'
+      back: 'She bought an apple.\n/ˈæpəl/\nEla comprou uma maçã.'
     });
   });
 
@@ -55,7 +55,7 @@ describe('canonical Anki card format', () => {
       strategic_gap: { gap_sentence: 'I forgot my (_____ ) again.', expected_chunk: 'wallet' }
     }))).toEqual({
       front: 'I forgot my (carteira) again.',
-      back: 'wallet /ˈwɑː.lət/\nI forgot my wallet again.'
+      back: 'I forgot my wallet again.\n/ˈwɑː.lət/\nEsqueci minha carteira de novo.'
     });
   });
 
@@ -101,7 +101,7 @@ describe('canonical Anki card format', () => {
   it('validates the three card types without legacy fields on their backs', () => {
     expect(validateCanonicalCard(
       'I like (maçã).',
-      'apple /ˈæpəl/\nI like apple.',
+      'I like apple.\n/ˈæpəl/\nEu gosto de maçã.',
       'vocabulary'
     )).toEqual([]);
 
@@ -112,12 +112,12 @@ describe('canonical Anki card format', () => {
     )).toEqual([]);
   });
 
-  it('requires term and IPA on the first vocabulary back line', () => {
+  it('requires sentence, IPA and translation on the vocabulary back', () => {
     expect(validateCanonicalCard(
       'I like (maçã).',
-      'I like apple.\n/ˈæpəl/',
+      'apple /ˈæpəl/\nI like apple.',
       'vocabulary'
-    )).toContain('O verso do vocabulário deve conter “termo IPA” e a frase completa em inglês.');
+    )).toContain('O verso do vocabulário deve conter frase completa, IPA e tradução da frase.');
   });
 
   it('requires syntactic metadata for phrasal verbs', () => {
@@ -167,7 +167,7 @@ describe('canonical Anki card format', () => {
 
     expect(validateCanonicalCard(
       'I forgot my (carteira) again.',
-      'wallet /ˈwɑː.lət/\n[sound:wallet.mp3]\nI forgot my wallet again.',
+      'I forgot my wallet again.\n/ˈwɑː.lət/\n[sound:wallet.mp3]',
       'vocabulary'
     )).toContain('O card canônico deve conter somente texto; não inclua áudio nem campos reversos do Anki.');
   });
@@ -182,7 +182,7 @@ describe('canonical Anki card format', () => {
 
     expect(card).not.toBeNull();
     expect(formatCanonicalCardForClipboard(card!)).toBe(
-      'Frente:\nI forgot my (carteira) again.\n\nVerso:\nwallet /ˈwɑː.lət/\nI forgot my wallet again.'
+      'Frente:\nI forgot my (carteira) again.\n\nVerso:\nI forgot my wallet again.\n/ˈwɑː.lət/\nEsqueci minha carteira de novo.'
     );
     expect(formatCanonicalCardForClipboard(card!)).not.toContain('Basic (and reversed card)');
     expect(formatCanonicalCardForClipboard(card!)).not.toContain('[sound:');

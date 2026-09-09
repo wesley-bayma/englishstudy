@@ -66,7 +66,7 @@ REGRAS CANÔNICAS DE AVALIAÇÃO:
 8. O modelo do Anki é sempre Basic, com uma frente e um verso; não recomende Basic (and reversed card) para esta rotina.
 
 PADRÕES ESPERADOS PELO USUÁRIO:
-- Vocabulário: Frente "I forgot my (carteira) again." -> Verso "wallet /ˈwɑː.lət/\nI forgot my wallet again."
+- Vocabulário: Frente "I forgot my (carteira) again." -> Verso "I forgot my wallet again.\n/ˈwɑː.lət/\nEsqueci minha carteira de novo."
 - Frase: Frente "Could you speak (..?)?\nVocê poderia falar mais devagar?" -> Verso "Could you speak more slowly?"
 - Phrasal Verb: Frente "I need to (PV: descobrir) the truth." -> Verso "find out — finding out — found out\nI need to find out the truth."
 
