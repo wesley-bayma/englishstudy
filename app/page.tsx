@@ -596,7 +596,6 @@ export default function TodayPage() {
         item={selectedItem}
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
-        onItemUpdated={handleItemUpdated}
         onOpenEncounterModal={isViewingToday ? (it) => {
           setSelectedItem(it);
           setIsEncounterOpen(true);

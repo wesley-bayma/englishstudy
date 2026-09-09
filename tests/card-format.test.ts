@@ -16,10 +16,15 @@ function sheet(overrides: Partial<StudySheet>): StudySheet {
 }
 
 describe('canonical Anki card format', () => {
-  it('mirrors a vocabulary target and includes the sentence translation and IPA on the back', () => {
-    expect(buildCanonicalCard(sheet({}))).toEqual({
-      front: 'I like (maçã).',
-      back: 'I like apple.\n/ˈæpəl/\nEu gosto de maçã.'
+  it('uses the manual vocabulary format: Portuguese hint, term with IPA and full English sentence', () => {
+    expect(buildCanonicalCard(sheet({
+      term: 'wallet',
+      ipa: '/ˈwɑː.lət/',
+      translation: 'carteira',
+      examples: [{ en: 'I forgot my wallet again.', pt: 'Esqueci minha carteira de novo.' }]
+    }))).toEqual({
+      front: 'I forgot my (carteira) again.',
+      back: 'wallet /ˈwɑː.lət/\nI forgot my wallet again.'
     });
   });
 
@@ -31,7 +36,7 @@ describe('canonical Anki card format', () => {
       ]
     }))).toEqual({
       front: 'She bought an (maçã).',
-      back: 'She bought an apple.\n/ˈæpəl/\nEla comprou uma maçã.'
+      back: 'apple /ˈæpəl/\nShe bought an apple.'
     });
   });
 
@@ -41,7 +46,7 @@ describe('canonical Anki card format', () => {
     }))).toBeNull();
   });
 
-  it('keeps one meaningful gap for a survival phrase', () => {
+  it('keeps one normalized strategic gap for a survival phrase', () => {
     expect(buildCanonicalCard(sheet({
       term: 'Could you speak more slowly?',
       type: 'survival_phrase',
@@ -54,8 +59,8 @@ describe('canonical Anki card format', () => {
       },
       examples: []
     }))).toEqual({
-      front: 'Could you speak (_____) ?\nVocê poderia falar mais devagar?',
-      back: 'Could you speak more slowly?\n/kʊd juː spiːk mɔːr ˈsloʊ.li/\nVocê poderia falar mais devagar?'
+      front: 'Could you speak (..?)?\nVocê poderia falar mais devagar?',
+      back: 'Could you speak more slowly?'
     });
   });
 
@@ -66,33 +71,40 @@ describe('canonical Anki card format', () => {
       ipa: '/faɪnd aʊt/',
       grammatical_class: 'phrasal verb',
       translation: 'descobrir',
-      examples: [{ en: 'I need to find out the truth.', pt: 'Preciso descobrir a verdade.' }]
+      examples: [{ en: 'I need to find out the truth.', pt: 'Preciso descobrir a verdade.' }],
+      phrasal_verb_info: {
+        primary_meaning: 'descobrir',
+        verb_forms: { base: 'find out', gerund: 'finding out', past: 'found out' },
+        separability: 'separable',
+        transitivity: 'transitive',
+        object_pattern: 'find out + information'
+      }
     }))).toEqual({
       front: 'I need to (PV: descobrir) the truth.',
-      back: 'I need to find out the truth.\n/faɪnd aʊt/\nPreciso descobrir a verdade.'
+      back: 'find out — finding out — found out\nI need to find out the truth.'
     });
   });
 
-  it('rejects the old audio label and validates the three card types', () => {
+  it('validates the three card types without legacy fields on their backs', () => {
     expect(validateCanonicalCard(
       'I like (maçã).',
-      'I like (apple).\n/ˈæpəl/\nEu gosto de maçã.\nÁudio no verso.',
+      'apple /ˈæpəl/\nI like apple.',
       'vocabulary'
-    )).toContain('Remova o texto de áudio do card; deixe apenas o IPA.');
+    )).toEqual([]);
 
     expect(validateCanonicalCard(
-      'Could you speak (_____) ?\nVocê poderia falar mais devagar?',
-      'Could you speak more slowly?\n/kʊd juː spiːk mɔːr ˈsloʊ.li/\nVocê poderia falar mais devagar?',
+      'Could you speak (..?)?\nVocê poderia falar mais devagar?',
+      'Could you speak more slowly?',
       'survival_phrase'
     )).toEqual([]);
   });
 
-  it('requires the IPA to remain on the second line of the back', () => {
+  it('requires term and IPA on the first vocabulary back line', () => {
     expect(validateCanonicalCard(
       'I like (maçã).',
-      'I like (apple).\nEu gosto de maçã.\n/ˈæpəl/',
+      'I like apple.\n/ˈæpəl/',
       'vocabulary'
-    )).toContain('O IPA deve ser a segunda linha do verso.');
+    )).toContain('O verso do vocabulário deve conter “termo IPA” e a frase completa em inglês.');
   });
 
   it('requires syntactic metadata for phrasal verbs', () => {
@@ -102,7 +114,7 @@ describe('canonical Anki card format', () => {
       grammatical_class: 'phrasal verb',
       translation: 'descobrir',
       examples: [{ en: 'I need to find out.', pt: 'Preciso descobrir.' }]
-    }))).toContain('O phrasal verb precisa informar sentido, estrutura, separabilidade e transitividade.');
+    }))).toContain('O phrasal verb precisa informar sentido, formas, estrutura, separabilidade e transitividade.');
   });
 
   it('rejects a survival phrase with more than one gap', () => {

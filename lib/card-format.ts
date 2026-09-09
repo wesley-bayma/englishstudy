@@ -5,7 +5,7 @@ export interface CanonicalCard {
   back: string;
 }
 
-const GAP_PATTERN = /\(\s*_{2,}\s*\)|\[\s*\.{2,}\s*\]|_{2,}/g;
+const GAP_PATTERN = /\(\s*(?:_{2,}|\.{2,}\?)\s*\)|\[\s*\.{2,}\s*\]|_{2,}/g;
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -44,10 +44,12 @@ function isPhrasalVerb(sheet: StudySheet): boolean {
     (sheet.grammatical_class || '').toLowerCase().includes('phrasal');
 }
 
-function appendCardTranslation(sentence: string, translation: string, ipa: string): string {
-  const cleanTranslation = (translation || '').trim();
-  const cleanIpa = (ipa || '').trim();
-  return [sentence.trim(), cleanIpa, cleanTranslation].filter(Boolean).join('\n');
+function normalizeStrategicGap(sentence: string): string {
+  return sentence
+    .replace(/\(\s*_{2,}\s*\)|\[\s*\.{2,}\s*\]|_{2,}/g, '(..?)')
+    .replace(/\(\.\.\?\)\s+([?.!,;:])/g, '(..?)$1')
+    .replace(/\s+([?.!,;:])/g, '$1')
+    .trim();
 }
 
 /**
@@ -65,8 +67,8 @@ export function buildCanonicalCard(sheet: StudySheet): CanonicalCard | null {
 
     const translation = sheet.translation.trim();
     return {
-      front: `${gap.gap_sentence.trim()}\n${translation}`.trim(),
-      back: appendCardTranslation(sheet.term.trim(), translation, sheet.ipa)
+      front: `${normalizeStrategicGap(gap.gap_sentence)}\n${translation}`.trim(),
+      back: sheet.term.trim()
     };
   }
 
@@ -79,12 +81,15 @@ export function buildCanonicalCard(sheet: StudySheet): CanonicalCard | null {
     : `(${meaning})`;
   const frontSentence = replaceTerm(example.en, sheet.term, frontTarget);
   const backSentence = replaceTerm(example.en, sheet.term, sheet.term.trim());
+  const forms = sheet.phrasal_verb_info?.verb_forms;
 
-  if (!frontSentence || !backSentence) return null;
+  if (!frontSentence || !backSentence || (isPhrasalVerb(sheet) && (!forms?.base || !forms.gerund || !forms.past))) return null;
 
   return {
     front: frontSentence,
-    back: appendCardTranslation(backSentence, example.pt, sheet.ipa)
+    back: isPhrasalVerb(sheet)
+      ? `${forms!.base.trim()} — ${forms!.gerund.trim()} — ${forms!.past.trim()}\n${backSentence}`
+      : `${sheet.term.trim()} ${sheet.ipa.trim()}\n${backSentence}`
   };
 }
 
@@ -98,32 +103,25 @@ export function validateCanonicalCard(
   const isPhrase = normalizedType === 'survival_phrase' || normalizedType === 'personal_phrase';
   const isPv = normalizedType === 'phrasal_verb';
 
-  if (back.toLowerCase().includes('áudio no verso') || back.toLowerCase().includes('audio no verso')) {
-    issues.push('Remova o texto de áudio do card; deixe apenas o IPA.');
-  }
-
   const gapCount = front.match(GAP_PATTERN)?.length || 0;
   const backLines = back.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
   if (isPhrase) {
     if (gapCount !== 1) issues.push('A frase de sobrevivência deve ter uma única lacuna significativa.');
     if (!front.includes('\n')) issues.push('Inclua a tradução completa abaixo da frase na frente.');
-    if (!back.trim()) issues.push('O verso precisa conter a frase completa em inglês.');
-    if (backLines.length < 3) issues.push('Inclua a tradução em português e o IPA no verso.');
-    if (backLines.length >= 3 && !backLines[1].match(/\/[^\/\n]+\//)) {
-      issues.push('O IPA deve ser a segunda linha do verso.');
-    }
-    if (!back.match(/\/[^/\n]+\//)) issues.push('Inclua o IPA no verso.');
+    if (backLines.length !== 1) issues.push('O verso da frase de sobrevivência deve conter somente a frase completa em inglês.');
   } else {
     if (!front.match(/\([^()]+\)/)) issues.push('A frente precisa conter uma única pista entre parênteses.');
     if (backLines[0]?.match(/\([^()]+\)/)) {
       issues.push('A frase em inglês do verso não deve conter o termo entre parênteses.');
     }
-    if (backLines.length < 3) issues.push('Inclua a tradução da frase e o IPA no verso.');
-    if (backLines.length >= 3 && !backLines[1].match(/\/[^\/\n]+\//)) {
-      issues.push('O IPA deve ser a segunda linha do verso.');
+    if (isPv) {
+      if (!front.includes('PV:')) issues.push('A frente do phrasal verb deve indicar o sentido com “PV:”.');
+      if (backLines.length !== 2 || !backLines[0]?.includes(' — ')) {
+        issues.push('O verso do phrasal verb deve conter as formas base, gerúndio e passado e a frase em inglês.');
+      }
+    } else if (backLines.length !== 2 || !backLines[0]?.match(/\/[^\/\n]+\//)) {
+      issues.push('O verso do vocabulário deve conter “termo IPA” e a frase completa em inglês.');
     }
-    if (!back.match(/\/[^/\n]+\//)) issues.push('Inclua o IPA no verso.');
-    if (isPv && !front.includes('PV:')) issues.push('A frente do phrasal verb deve indicar o sentido com “PV:”.');
 
   }
 
@@ -151,8 +149,8 @@ export function validateStudySheet(sheet: StudySheet): string[] {
 
   if (pv) {
     const info = sheet.phrasal_verb_info;
-    if (!info?.primary_meaning || !info.object_pattern || !info.separability || !info.transitivity) {
-      issues.push('O phrasal verb precisa informar sentido, estrutura, separabilidade e transitividade.');
+    if (!info?.primary_meaning || !info.verb_forms?.base || !info.verb_forms?.gerund || !info.verb_forms?.past || !info.object_pattern || !info.separability || !info.transitivity) {
+      issues.push('O phrasal verb precisa informar sentido, formas, estrutura, separabilidade e transitividade.');
     }
   }
 

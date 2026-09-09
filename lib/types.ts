@@ -115,6 +115,11 @@ export interface StrategicGapInfo {
 
 export interface PhrasalVerbInfo {
   primary_meaning: string;
+  verb_forms: {
+    base: string;
+    gerund: string;
+    past: string;
+  };
   separability: 'separable' | 'inseparable' | 'both' | 'not_applicable';
   transitivity: 'transitive' | 'intransitive' | 'both';
   object_pattern: string;

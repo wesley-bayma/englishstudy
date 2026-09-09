@@ -2,7 +2,7 @@ import { AIAnalysisResult, CardReviewResult, ContentType, StudySheet, StudySheet
 import { getDB } from './db';
 import { parseStudySheet } from './ai-validation';
 
-const STUDY_SHEET_CACHE_VERSION = 'v4-openrouter-schema';
+const STUDY_SHEET_CACHE_VERSION = 'v5-canonical-anki-format';
 const studySheetMemoryCache = new Map<string, StudySheet>();
 const studySheetRequests = new Map<string, Promise<StudySheet | null>>();
 

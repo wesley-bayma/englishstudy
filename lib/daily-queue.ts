@@ -523,8 +523,13 @@ export async function setQueueItemAnkiStatus(
   }
 
   const db = getDB();
-  const current = await getOrCreateTodayQueue();
-  const queue = current.queue;
+  // The daily queue is created when the study page loads. Reading it directly
+  // keeps a normal Anki confirmation to one IndexedDB transaction instead of
+  // re-running queue scheduling on every card.
+  let queue = await db.daily_queues.get(getQueueId(todayStr));
+  if (!queue) {
+    queue = (await getOrCreateTodayQueue()).queue;
+  }
   if (!queue.items.some(queueItem => queueItem.content_id === contentId)) {
     throw new Error('Item is not part of the current day queue');
   }

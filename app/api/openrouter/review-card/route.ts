@@ -62,12 +62,12 @@ REGRAS CANÔNICAS DE AVALIAÇÃO:
 4. Frase natural e realista em inglês.
 5. Evitar palavras excessivamente difíceis no contexto da frase.
 6. Recuperação ativa garantida (a frente força a mente a buscar a palavra/chunk em inglês).
-7. O verso pode conter somente a pronúncia IPA como metadado; não exija nem escreva um rótulo de áudio.
+7. Não exija traduções, IPA extra ou rótulo de áudio em tipos de card que não os usam.
 
 PADRÕES ESPERADOS PELO USUÁRIO:
-- Vocabulário: Frente "I bought an (maçã)." -> Verso "I bought an apple.\n/ˈæpəl/"
-- Frase: Frente "Could you speak (_____)?\nVocê poderia falar mais devagar?" -> Verso "Could you speak more slowly?\n/kʊd juː spiːk mɔːr ˈsloʊ.li/"
-- Phrasal Verb: Frente "I need to (PV: descobrir) the truth." -> Verso "I need to find out the truth.\n/faɪnd aʊt/"
+- Vocabulário: Frente "I forgot my (carteira) again." -> Verso "wallet /ˈwɑː.lət/\nI forgot my wallet again."
+- Frase: Frente "Could you speak (..?)?\nVocê poderia falar mais devagar?" -> Verso "Could you speak more slowly?"
+- Phrasal Verb: Frente "I need to (PV: descobrir) the truth." -> Verso "find out — finding out — found out\nI need to find out the truth."
 
 Avalie o card segundo essas regras e retorne no máximo 3 observações concisas e diretas (sem textos longos!). Responda ESTRITAMENTE em JSON válido com os campos status, status_label, score, observations e summary.`;
 

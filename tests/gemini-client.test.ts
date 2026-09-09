@@ -96,6 +96,45 @@ describe('Gemini client', () => {
     expect(fetchMock.mock.calls[1][0]).toContain('openrouter.ai');
   });
 
+  it('does not start a fallback after the shared 52-second request deadline has elapsed', async () => {
+    const { requestAiJson } = await import('../lib/gemini-client');
+    process.env.GEMINI_API_KEY = 'gemini-key';
+    process.env.OPENROUTER_API_KEY = 'openrouter-key';
+    const fetchMock = vi.fn().mockResolvedValue(response({ error: { message: 'temporary failure' } }, 503));
+    globalThis.fetch = fetchMock;
+    vi.spyOn(Date, 'now')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(52_000);
+
+    await expect(requestAiJson({ prompt: 'test' })).rejects.toMatchObject({
+      code: 'UPSTREAM_TIMEOUT',
+      status: 504
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('cuts off Gemini after 30 seconds and allows the fallback to use the remaining route budget', async () => {
+    const { requestAiJson } = await import('../lib/gemini-client');
+    process.env.GEMINI_API_KEY = 'gemini-key';
+    process.env.OPENROUTER_API_KEY = 'openrouter-key';
+    vi.useFakeTimers();
+    const fetchMock = vi.fn()
+      .mockImplementationOnce((_input, init) => new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+      }))
+      .mockResolvedValueOnce(response({
+        choices: [{ message: { content: '{"ok":true}' }, finish_reason: 'stop' }]
+      }));
+    globalThis.fetch = fetchMock;
+
+    const result = requestAiJson<{ ok: boolean }>({ prompt: 'test' });
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    await expect(result).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('fails explicitly when the server key is absent', () => {
     delete process.env.GEMINI_API_KEY;
     expect(() => getGeminiApiKey()).toThrowError(

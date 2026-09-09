@@ -181,6 +181,7 @@ const CURATED_SHEETS: Record<string, any> = {
     related_words: ['continue (continuar)', 'happen (acontecer)', 'keep going (continuar em frente)'],
     phrasal_verb_info: {
       primary_meaning: 'continuar',
+      verb_forms: { base: 'go on', gerund: 'going on', past: 'went on' },
       separability: 'inseparable',
       transitivity: 'both',
       object_pattern: 'go on + verb-ing ou go on with + noun',
@@ -215,6 +216,7 @@ const CURATED_SHEETS: Record<string, any> = {
     related_words: ['pick (escolher/pegar)', 'pickup (retirada/coleta)', 'drop off (deixar alguém/algo)'],
     phrasal_verb_info: {
       primary_meaning: 'buscar alguém',
+      verb_forms: { base: 'pick up', gerund: 'picking up', past: 'picked up' },
       separability: 'separable',
       transitivity: 'transitive',
       object_pattern: 'pick someone up at/from + place',
@@ -414,7 +416,7 @@ REGRAS OBRIGATÓRIAS:
 2. Priorize um único significado frequente, útil e adequado ao nível. Não despeje significados distantes.
 3. Só inclua colocações realmente comuns e semanticamente naturais. Se não houver uma colocação segura, retorne uma lista menor.
 4. Os exemplos devem demonstrar uso real, variar contexto e conter exatamente o termo estudado; inclua ao menos um exemplo em que o termo apareça como sequência contínua para o card espelhado. Nunca invente uma frase genérica apenas para preencher a lista.
-5. Para PHRASAL VERB, mantenha o sentido escolhido em todos os exemplos e informe estrutura, transitividade, separabilidade e posição de pronomes.
+5. Para PHRASAL VERB, mantenha o sentido escolhido em todos os exemplos e informe as formas base, gerúndio e passado, além de estrutura, transitividade, separabilidade e posição de pronomes.
 6. Não traduza phrasal verbs palavra por palavra.
 7. Gere IPA, classe gramatical, significado principal, uso, estruturas, colocações úteis, exemplos naturais, família de palavras e uma dica curta.
 8. Responda somente JSON conforme o schema. Campos sem informação segura devem ser arrays vazios; não use placeholders.`;

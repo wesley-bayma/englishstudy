@@ -5,6 +5,10 @@ const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
 export const DEFAULT_OPENROUTER_FALLBACK_MODEL = 'z-ai/glm-5.3-flash';
 const DEFAULT_TIMEOUT_MS = 50_000;
+const AI_ROUTE_DEADLINE_MS = 52_000;
+const PRIMARY_PROVIDER_MAX_MS = 30_000;
+const FALLBACK_PROVIDER_MAX_MS = 35_000;
+const DEADLINE_SAFETY_MARGIN_MS = 1_000;
 
 export function getGeminiApiKey(): string {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -36,6 +40,23 @@ export interface GeminiJsonRequest {
   temperature?: number;
   jsonSchema?: Record<string, unknown>;
   onResponse?: (meta: GeminiResponseMeta) => void;
+  deadlineAt?: number;
+  maxTimeoutMs?: number;
+}
+
+function resolveTimeoutMs(configuredTimeout: number, maxTimeoutMs: number, deadlineAt?: number): number {
+  const configured = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+    ? configuredTimeout
+    : DEFAULT_TIMEOUT_MS;
+  const remaining = deadlineAt === undefined
+    ? Number.POSITIVE_INFINITY
+    : deadlineAt - Date.now() - DEADLINE_SAFETY_MARGIN_MS;
+
+  if (remaining <= 0) {
+    throw new ApiServiceError('UPSTREAM_TIMEOUT', 504, 'A geração demorou demais. Tente novamente.');
+  }
+
+  return Math.min(configured, maxTimeoutMs, remaining);
 }
 
 const GEMINI_SCHEMA_TYPES: Record<string, string> = {
@@ -98,13 +119,13 @@ export async function requestGeminiJson<T>({
   maxTokens = 4096,
   temperature = 0.2,
   jsonSchema,
-  onResponse
+  onResponse,
+  deadlineAt,
+  maxTimeoutMs = 55_000
 }: GeminiJsonRequest): Promise<T> {
   const controller = new AbortController();
   const configuredTimeout = Number(process.env.GEMINI_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
-  const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0
-    ? Math.min(configuredTimeout, 55_000)
-    : DEFAULT_TIMEOUT_MS;
+  const timeoutMs = resolveTimeoutMs(configuredTimeout, maxTimeoutMs, deadlineAt);
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
 
@@ -185,12 +206,18 @@ function canUseOpenRouterFallback(error: unknown): boolean {
  * from this application never spend a second provider request.
  */
 export async function requestAiJson<T>(request: Omit<GeminiJsonRequest, 'apiKey'>): Promise<T> {
+  const deadlineAt = request.deadlineAt || Date.now() + AI_ROUTE_DEADLINE_MS;
   const geminiApiKey = process.env.GEMINI_API_KEY;
   let primaryError: unknown;
 
   if (geminiApiKey) {
     try {
-      return await requestGeminiJson<T>({ ...request, apiKey: geminiApiKey });
+      return await requestGeminiJson<T>({
+        ...request,
+        apiKey: geminiApiKey,
+        deadlineAt,
+        maxTimeoutMs: Math.min(request.maxTimeoutMs || PRIMARY_PROVIDER_MAX_MS, PRIMARY_PROVIDER_MAX_MS)
+      });
     } catch (error) {
       if (!canUseOpenRouterFallback(error)) throw error;
       primaryError = error;
@@ -202,9 +229,15 @@ export async function requestAiJson<T>(request: Omit<GeminiJsonRequest, 'apiKey'
   const fallbackApiKey = process.env.OPENROUTER_API_KEY;
   if (!fallbackApiKey) throw primaryError;
 
+  if (deadlineAt - Date.now() <= DEADLINE_SAFETY_MARGIN_MS) {
+    throw new ApiServiceError('UPSTREAM_TIMEOUT', 504, 'A geração demorou demais. Tente novamente.');
+  }
+
   return requestOpenRouterJson<T>({
     ...request,
     apiKey: fallbackApiKey,
-    model: process.env.OPENROUTER_FALLBACK_MODEL || DEFAULT_OPENROUTER_FALLBACK_MODEL
+    model: process.env.OPENROUTER_FALLBACK_MODEL || DEFAULT_OPENROUTER_FALLBACK_MODEL,
+    deadlineAt,
+    maxTimeoutMs: Math.min(request.maxTimeoutMs || FALLBACK_PROVIDER_MAX_MS, FALLBACK_PROVIDER_MAX_MS)
   });
 }

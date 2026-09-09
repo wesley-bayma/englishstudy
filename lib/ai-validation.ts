@@ -55,6 +55,10 @@ export function parseStudySheet(value: unknown):
   if (value.phrasal_verb_info !== undefined) {
     const info = value.phrasal_verb_info;
     if (!isRecord(info) || !isNonEmptyString(info.primary_meaning, 300) ||
+      !isRecord(info.verb_forms) ||
+      !isNonEmptyString(info.verb_forms.base, 200) ||
+      !isNonEmptyString(info.verb_forms.gerund, 200) ||
+      !isNonEmptyString(info.verb_forms.past, 200) ||
       typeof info.separability !== 'string' || !PHRASAL_SEPARABILITY.has(info.separability) ||
       typeof info.transitivity !== 'string' || !PHRASAL_TRANSITIVITY.has(info.transitivity) ||
       !isNonEmptyString(info.object_pattern, 300) ||

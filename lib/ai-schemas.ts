@@ -35,12 +35,22 @@ export const STUDY_SHEET_JSON_SCHEMA = {
         additionalProperties: false,
         properties: {
           primary_meaning: { type: 'string' },
+          verb_forms: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              base: { type: 'string' },
+              gerund: { type: 'string' },
+              past: { type: 'string' }
+            },
+            required: ['base', 'gerund', 'past']
+          },
           separability: { type: 'string', enum: ['separable', 'inseparable', 'both', 'not_applicable'] },
           transitivity: { type: 'string', enum: ['transitive', 'intransitive', 'both'] },
           object_pattern: { type: 'string' },
           pronoun_rule: { type: 'string' }
         },
-        required: ['primary_meaning', 'separability', 'transitivity', 'object_pattern']
+        required: ['primary_meaning', 'verb_forms', 'separability', 'transitivity', 'object_pattern']
       },
       pattern: { type: 'string' },
       variations: {

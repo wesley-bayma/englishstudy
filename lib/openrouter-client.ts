@@ -3,6 +3,7 @@ import { ApiServiceError } from './api-errors';
 const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
 export const DEFAULT_OPENROUTER_MODEL = '~deepseek/deepseek-v4-flash-latest';
 const DEFAULT_TIMEOUT_MS = 50_000;
+const DEADLINE_SAFETY_MARGIN_MS = 1_000;
 
 export function getOpenRouterApiKey(): string {
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -41,6 +42,23 @@ export interface OpenRouterJsonRequest {
   temperature?: number;
   jsonSchema?: Record<string, unknown>;
   onResponse?: (meta: OpenRouterResponseMeta) => void;
+  deadlineAt?: number;
+  maxTimeoutMs?: number;
+}
+
+function resolveTimeoutMs(configuredTimeout: number, maxTimeoutMs: number, deadlineAt?: number): number {
+  const configured = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+    ? configuredTimeout
+    : DEFAULT_TIMEOUT_MS;
+  const remaining = deadlineAt === undefined
+    ? Number.POSITIVE_INFINITY
+    : deadlineAt - Date.now() - DEADLINE_SAFETY_MARGIN_MS;
+
+  if (remaining <= 0) {
+    throw new ApiServiceError('UPSTREAM_TIMEOUT', 504, 'A geração demorou demais. Tente novamente.');
+  }
+
+  return Math.min(configured, maxTimeoutMs, remaining);
 }
 
 function extractContent(payload: OpenRouterResponse): string {
@@ -84,13 +102,13 @@ export async function requestOpenRouterJson<T>({
   maxTokens = 4096,
   temperature = 0.2,
   jsonSchema,
-  onResponse
+  onResponse,
+  deadlineAt,
+  maxTimeoutMs = 55_000
 }: OpenRouterJsonRequest): Promise<T> {
   const controller = new AbortController();
   const configuredTimeout = Number(process.env.OPENROUTER_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
-  const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0
-    ? Math.min(configuredTimeout, 55_000)
-    : DEFAULT_TIMEOUT_MS;
+  const timeoutMs = resolveTimeoutMs(configuredTimeout, maxTimeoutMs, deadlineAt);
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const model = requestedModel || process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL;
 

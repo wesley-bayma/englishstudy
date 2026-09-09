@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ContentItem, Encounter, StudySheet } from '../lib/types';
 import { getItemEncounters } from '../lib/db';
 import { getStudySheetWithOpenRouter, prefetchStudySheetWithOpenRouter } from '../lib/openrouter';
+import { getNextQueueItem } from '../lib/study-navigation';
 import { StudySheetView } from './StudySheetView';
 import { 
   X, 
@@ -22,7 +23,8 @@ interface ItemDetailModalProps {
   item: ContentItem | null;
   isOpen: boolean;
   onClose: () => void;
-  onItemUpdated: (item: ContentItem) => void;
+  /** Retained for callers that update an item from another modal action. */
+  onItemUpdated?: (item: ContentItem) => void;
   onOpenEncounterModal?: (item: ContentItem) => void;
   onToggleAnki?: (item: ContentItem) => Promise<ContentItem>;
   readOnly?: boolean;
@@ -34,7 +36,6 @@ export function ItemDetailModal({
   item,
   isOpen,
   onClose,
-  onItemUpdated,
   onOpenEncounterModal,
   onToggleAnki,
   readOnly = false,
@@ -46,41 +47,26 @@ export function ItemDetailModal({
   const [isLoadingSheet, setIsLoadingSheet] = useState(false);
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [autoAdvanceFeedback, setAutoAdvanceFeedback] = useState<string | null>(null);
-  const autoAdvanceTimerRef = useRef<number | null>(null);
+  const [isSavingAnki, setIsSavingAnki] = useState(false);
+  const feedbackTimerRef = useRef<number | null>(null);
+  const itemId = item?.id;
+  const itemContent = item?.content || '';
+  const itemType = item?.type || 'vocabulary';
+  const itemMeaning = item?.meaning_pt || '';
+  const itemExample = item?.example || '';
 
   useEffect(() => {
-    if (!item || !isOpen) return;
+    if (!itemId || !isOpen) return;
 
     let isActive = true;
 
-    if (!readOnly && queueItems.length > 1) {
-      const currentQueueIndex = queueItems.findIndex(queueItem => queueItem.id === item.id);
-      const nextPendingItem = queueItems.find((queueItem, index) => (
-        index > currentQueueIndex && queueItem.anki_status !== 'created'
-      ));
-      const nextQueueItem = nextPendingItem || (
-        currentQueueIndex >= 0 && currentQueueIndex < queueItems.length - 1
-          ? queueItems[currentQueueIndex + 1]
-          : null
-      );
-
-      if (nextQueueItem) {
-        prefetchStudySheetWithOpenRouter(
-          nextQueueItem.content,
-          nextQueueItem.type,
-          nextQueueItem.meaning_pt || '',
-          nextQueueItem.example || ''
-        );
-      }
-    }
-
-    getItemEncounters(item.id).then(result => {
+    getItemEncounters(itemId).then(result => {
       if (isActive) setEncounters(result);
     });
     setIsLoadingSheet(true);
     setSheet(null);
     setSheetError(null);
-    getStudySheetWithOpenRouter(item.content, item.type, item.meaning_pt || '', item.example || '')
+    getStudySheetWithOpenRouter(itemContent, itemType, itemMeaning, itemExample)
       .then(res => {
         if (!isActive) return;
         setSheet(res);
@@ -102,12 +88,36 @@ export function ItemDetailModal({
 
     return () => {
       isActive = false;
-      if (autoAdvanceTimerRef.current !== null) {
-        window.clearTimeout(autoAdvanceTimerRef.current);
-        autoAdvanceTimerRef.current = null;
+    };
+  }, [isOpen, itemId, itemContent, itemType, itemMeaning, itemExample]);
+
+  useEffect(() => {
+    if (!itemId || !isOpen || readOnly) return;
+    const nextQueueItem = getNextQueueItem(queueItems, itemId);
+    if (!nextQueueItem) return;
+
+    prefetchStudySheetWithOpenRouter(
+      nextQueueItem.content,
+      nextQueueItem.type,
+      nextQueueItem.meaning_pt || '',
+      nextQueueItem.example || ''
+    );
+  }, [isOpen, itemId, readOnly, queueItems]);
+
+  useEffect(() => {
+    if (!autoAdvanceFeedback) return;
+    feedbackTimerRef.current = window.setTimeout(() => {
+      feedbackTimerRef.current = null;
+      setAutoAdvanceFeedback(null);
+    }, 1800);
+
+    return () => {
+      if (feedbackTimerRef.current !== null) {
+        window.clearTimeout(feedbackTimerRef.current);
+        feedbackTimerRef.current = null;
       }
     };
-  }, [isOpen, item, item?.id, item?.content, item?.type, item?.meaning_pt, item?.example, readOnly, queueItems]);
+  }, [autoAdvanceFeedback]);
 
   if (!isOpen || !item) return null;
 
@@ -128,41 +138,29 @@ export function ItemDetailModal({
   };
 
   const handleToggleAnki = async () => {
-    if (readOnly || !onToggleAnki) return;
+    if (readOnly || !onToggleAnki || isSavingAnki) return;
+
+    const nextItem = item.anki_status === 'created'
+      ? null
+      : getNextQueueItem(queueItems, item.id);
+    setIsSavingAnki(true);
 
     try {
       const updated = await onToggleAnki(item);
-      onItemUpdated(updated);
 
-      // AUTO-ADVANCE: If marking as created and there are next items, automatically advance!
       if (updated.anki_status === 'created' && onSelectNextItem) {
-        // Find next pending item first, or next item in sequence
-        const nextPending = queueItems.find((qItem, idx) => idx > currentIndex && qItem.anki_status !== 'created');
-        const nextItem = nextPending || (hasNext ? queueItems[currentIndex + 1] : null);
-
         if (nextItem) {
-              prefetchStudySheetWithOpenRouter(
-            nextItem.content,
-            nextItem.type,
-            nextItem.meaning_pt || '',
-            nextItem.example || ''
-          );
           setAutoAdvanceFeedback(`Salvo no Anki! Avançando para "${nextItem.content}"...`);
-          autoAdvanceTimerRef.current = window.setTimeout(() => {
-            autoAdvanceTimerRef.current = null;
-            setAutoAdvanceFeedback(null);
-            onSelectNextItem(nextItem);
-          }, 600);
+          onSelectNextItem(nextItem);
         } else {
           setAutoAdvanceFeedback(`🎉 Parabéns! Todos os cards da fila foram criados!`);
-          autoAdvanceTimerRef.current = window.setTimeout(() => {
-            autoAdvanceTimerRef.current = null;
-            setAutoAdvanceFeedback(null);
-          }, 2500);
         }
       }
     } catch (err) {
       console.error('Failed to toggle anki status:', err);
+      setAutoAdvanceFeedback('Não foi possível salvar no Anki. Tente novamente.');
+    } finally {
+      setIsSavingAnki(false);
     }
   };
 
@@ -250,13 +248,19 @@ export function ItemDetailModal({
             {!readOnly && onToggleAnki && (
               <button
                 onClick={handleToggleAnki}
+                disabled={isSavingAnki}
               className={`flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl text-xs font-black transition-all shadow-lg ${
                 isCreated
                   ? 'bg-dark-border text-slate-300 hover:bg-slate-700'
                   : 'bg-card-lime text-dark-bg hover:bg-card-limeDark shadow-card-lime/10 active:scale-95'
-              }`}
+              } disabled:cursor-wait disabled:opacity-70`}
             >
-              {isCreated ? (
+              {isSavingAnki ? (
+                <>
+                  <Sparkles className="w-4 h-4 animate-spin" />
+                  Salvando...
+                </>
+              ) : isCreated ? (
                 <>
                   <RotateCcw className="w-4 h-4" />
                   Marcado no Anki (Desmarcar)
