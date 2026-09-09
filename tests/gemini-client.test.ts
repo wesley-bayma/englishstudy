@@ -50,7 +50,7 @@ describe('Gemini client', () => {
     expect(body.generationConfig.responseMimeType).toBe('application/json');
     expect(body.generationConfig.responseSchema.type).toBe('OBJECT');
     expect(body.generationConfig.responseSchema.properties.ok.type).toBe('BOOLEAN');
-    expect(fetchMock.mock.calls[0][0]).toContain('gemini-2.5-flash:generateContent');
+    expect(fetchMock.mock.calls[0][0]).toContain('gemini-3.8-flash:generateContent');
   });
 
   it('maps provider auth, rate-limit, truncation and malformed JSON failures', async () => {

@@ -8,7 +8,7 @@ Configure estas variáveis na Vercel, separadas por ambiente:
 - `APP_PASSWORD`: senha pessoal de acesso à aplicação.
 - `SESSION_SECRET`: segredo aleatório com pelo menos 32 caracteres, diferente da senha.
 - `GEMINI_TIMEOUT_MS`: `50000`.
-- `GEMINI_MODEL`: opcional; o padrão é `gemini-2.5-flash`.
+- `GEMINI_MODEL`: opcional; o padrão é `gemini-3.8-flash`.
 - `OPENROUTER_API_KEY`: contingência privada para o Gemini; usada somente se a geração principal falhar.
 - `OPENROUTER_FALLBACK_MODEL`: opcional; o padrão é `z-ai/glm-5.3-flash`.
 
