@@ -386,8 +386,9 @@ GERE UMA FICHA DE FRASE DE SOBREVIVÊNCIA:
 3. Contexto real de uso (onde e quando usar).
 4. Padrão reutilizável da frase (ex: "Where is the nearest + [LUGAR]?", "Can I pay + [MEIO DE PAGAMENTO]?").
 5. 4 Variações naturais preservando o padrão e trocando apenas o elemento variável, com tradução.
-6. Escolha de UMA ÚNICA LACUNA ESTRATÉGICA com alto valor comunicativo (ex: em "Could you speak more slowly?", esconda "more slowly" -> "Could you speak (_____)?").
-7. Dica de ouro ou atenção cultural/prática.`;
+6. Escolha UMA ÚNICA LACUNA ESTRATÉGICA com alto valor comunicativo (ex: em "Could you speak more slowly?", esconda "more slowly" -> "Could you speak (_____)?"). O campo term deve continuar sendo a frase completa em inglês e conter o expected_chunk.
+7. O card textual será montado pela aplicação para o tipo Basic do Anki: frente com a lacuna e a tradução; verso somente com a frase completa. Não gere áudio, campos reversos ou conteúdo extra.
+8. Dica de ouro ou atenção cultural/prática.`;
 
       attemptedAi = true;
       const parsed = await requestAiJson<unknown>({
@@ -415,11 +416,12 @@ REGRAS OBRIGATÓRIAS:
 1. Classifique internamente a entrada antes de gerar. Uma frase completa nunca pode ser tratada como palavra, colocação ou substantivo.
 2. Priorize um único significado frequente, útil e adequado ao nível. Não despeje significados distantes.
 3. Só inclua colocações realmente comuns e semanticamente naturais. Se não houver uma colocação segura, retorne uma lista menor.
-4. Os exemplos devem demonstrar uso real, variar contexto e conter exatamente o termo estudado; inclua ao menos um exemplo em que o termo apareça como sequência contínua para o card espelhado. Nunca invente uma frase genérica apenas para preencher a lista.
+4. Os exemplos devem demonstrar uso real, variar contexto e conter exatamente o termo estudado como sequência contínua em pelo menos um exemplo. Nunca invente uma frase genérica apenas para preencher a lista.
 5. Para PHRASAL VERB, mantenha o sentido escolhido em todos os exemplos e informe as formas base, gerúndio e passado, além de estrutura, transitividade, separabilidade e posição de pronomes.
 6. Não traduza phrasal verbs palavra por palavra.
 7. Gere IPA, classe gramatical, significado principal, uso, estruturas, colocações úteis, exemplos naturais, família de palavras e uma dica curta.
-8. Responda somente JSON conforme o schema. Campos sem informação segura devem ser arrays vazios; não use placeholders.`;
+8. O card textual será montado pela aplicação para o tipo Basic do Anki: vocabulário usa uma dica em português na frente e "termo IPA" mais a frase completa no verso; phrasal verb usa "PV: significado" na frente e "base — gerund — past" mais a frase completa no verso. Não gere áudio, campos reversos ou markup do Anki.
+9. Responda somente JSON conforme o schema. Campos sem informação segura devem ser arrays vazios; não use placeholders.`;
 
     attemptedAi = true;
     const parsed = await requestAiJson<unknown>({

@@ -62,7 +62,8 @@ REGRAS CANÔNICAS DE AVALIAÇÃO:
 4. Frase natural e realista em inglês.
 5. Evitar palavras excessivamente difíceis no contexto da frase.
 6. Recuperação ativa garantida (a frente força a mente a buscar a palavra/chunk em inglês).
-7. Não exija traduções, IPA extra ou rótulo de áudio em tipos de card que não os usam.
+7. A regra de áudio é externa à aplicação: o usuário adicionará o áudio manualmente no campo Verso do Anki. Não exija markup de áudio no texto recebido.
+8. O modelo do Anki é sempre Basic, com uma frente e um verso; não recomende Basic (and reversed card) para esta rotina.
 
 PADRÕES ESPERADOS PELO USUÁRIO:
 - Vocabulário: Frente "I forgot my (carteira) again." -> Verso "wallet /ˈwɑː.lət/\nI forgot my wallet again."

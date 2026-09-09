@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { StudySheet } from '../lib/types';
-import { buildCanonicalCard } from '../lib/card-format';
+import { buildCanonicalCard, formatCanonicalCardForClipboard } from '../lib/card-format';
 import { 
   Volume2, 
   Copy, 
@@ -25,11 +25,7 @@ interface StudySheetViewProps {
 export function StudySheetView({ sheet, number }: StudySheetViewProps) {
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
 
-  const isSurvivalPhrase = 
-    sheet.type === 'survival_phrase' || 
-    sheet.type === 'personal_phrase' || 
-    (sheet.grammatical_class && sheet.grammatical_class.toLowerCase().includes('frase')) ||
-    Boolean(sheet.pattern || sheet.strategic_gap);
+  const isSurvivalPhrase = sheet.type === 'survival_phrase' || sheet.type === 'personal_phrase';
   const canonicalCard = buildCanonicalCard(sheet);
 
   const speak = (text: string) => {
@@ -65,9 +61,6 @@ export function StudySheetView({ sheet, number }: StudySheetViewProps) {
         });
         text += `\n`;
       }
-      if (canonicalCard) {
-        text += `Card Anki Recomendado:\nFrente:\n${canonicalCard.front}\n\nVerso:\n${canonicalCard.back}\n\n`;
-      }
     } else {
       if (sheet.useful_structures && sheet.useful_structures.length > 0) {
         text += `Estruturas úteis:\n${sheet.useful_structures.join('\n')}\n\n`;
@@ -89,6 +82,12 @@ export function StudySheetView({ sheet, number }: StudySheetViewProps) {
       if (sheet.related_words && sheet.related_words.length > 0) {
         text += `Palavras relacionadas:\n${sheet.related_words.join(', ')}\n\n`;
       }
+    }
+
+    if (canonicalCard) {
+      text += `Card Anki (Tipo Basic — não use Basic (and reversed card)):\n`;
+      text += `${formatCanonicalCardForClipboard(canonicalCard)}\n`;
+      text += `Áudio: adicione manualmente no campo Verso do Anki.\n\n`;
     }
 
     if (sheet.tip_warning) {
@@ -394,8 +393,12 @@ export function StudySheetView({ sheet, number }: StudySheetViewProps) {
       <div className="pt-2 border-t border-[#232936] space-y-3">
         <span className="text-xs font-mono font-bold text-card-lime uppercase tracking-wider flex items-center gap-1.5">
           <Sparkles className="w-4 h-4 text-card-lime" />
-          Modelo de Card Canônico para Anki (Tipo Basic):
+          Modelo de Card Canônico para Anki (Tipo Basic — uma frente e um verso):
         </span>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          No Anki, escolha <strong className="text-white">Basic</strong>. Não use <strong className="text-white">Basic (and reversed card)</strong>.
+          Adicione o áudio manualmente no campo <strong className="text-card-lime">Verso</strong>; ele não faz parte do texto copiado abaixo.
+        </p>
 
         {(() => {
           let cardFront = '';

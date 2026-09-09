@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCanonicalCard, validateCanonicalCard, validateStudySheet } from '../lib/card-format';
+import { buildCanonicalCard, formatCanonicalCardForClipboard, validateCanonicalCard, validateStudySheet } from '../lib/card-format';
 import { StudySheet } from '../lib/types';
 
 function sheet(overrides: Partial<StudySheet>): StudySheet {
@@ -44,6 +44,19 @@ describe('canonical Anki card format', () => {
     expect(buildCanonicalCard(sheet({
       examples: [{ en: 'This sentence is unrelated.', pt: 'Frase sem relação.' }]
     }))).toBeNull();
+  });
+
+  it('uses the declared vocabulary type even when legacy phrase fields are present', () => {
+    expect(buildCanonicalCard(sheet({
+      term: 'wallet',
+      ipa: '/ˈwɑː.lət/',
+      translation: 'carteira',
+      examples: [{ en: 'I forgot my wallet again.', pt: 'Esqueci minha carteira de novo.' }],
+      strategic_gap: { gap_sentence: 'I forgot my (_____ ) again.', expected_chunk: 'wallet' }
+    }))).toEqual({
+      front: 'I forgot my (carteira) again.',
+      back: 'wallet /ˈwɑː.lət/\nI forgot my wallet again.'
+    });
   });
 
   it('keeps one normalized strategic gap for a survival phrase', () => {
@@ -129,5 +142,49 @@ describe('canonical Anki card format', () => {
       },
       examples: []
     }))).toContain('A frase de sobrevivência precisa de uma única lacuna estratégica válida.');
+  });
+
+  it('rejects a survival phrase whose answer does not contain the expected chunk', () => {
+    expect(buildCanonicalCard(sheet({
+      term: 'Could you repeat that?',
+      type: 'survival_phrase',
+      grammatical_class: 'frase de sobrevivência',
+      translation: 'Você poderia repetir?',
+      strategic_gap: {
+        gap_sentence: 'Could you speak (_____)?',
+        expected_chunk: 'more slowly'
+      },
+      examples: []
+    }))).toBeNull();
+  });
+
+  it('requires exactly one vocabulary hint and rejects Anki/audio markup', () => {
+    expect(validateCanonicalCard(
+      'I forgot my (carteira) (again).',
+      'wallet /ˈwɑː.lət/\nI forgot my wallet again.',
+      'vocabulary'
+    )).toContain('A frente precisa conter uma única pista entre parênteses.');
+
+    expect(validateCanonicalCard(
+      'I forgot my (carteira) again.',
+      'wallet /ˈwɑː.lət/\n[sound:wallet.mp3]\nI forgot my wallet again.',
+      'vocabulary'
+    )).toContain('O card canônico deve conter somente texto; não inclua áudio nem campos reversos do Anki.');
+  });
+
+  it('formats the complete card for manual clipboard copying without reversed fields', () => {
+    const card = buildCanonicalCard(sheet({
+      term: 'wallet',
+      ipa: '/ˈwɑː.lət/',
+      translation: 'carteira',
+      examples: [{ en: 'I forgot my wallet again.', pt: 'Esqueci minha carteira de novo.' }]
+    }));
+
+    expect(card).not.toBeNull();
+    expect(formatCanonicalCardForClipboard(card!)).toBe(
+      'Frente:\nI forgot my (carteira) again.\n\nVerso:\nwallet /ˈwɑː.lət/\nI forgot my wallet again.'
+    );
+    expect(formatCanonicalCardForClipboard(card!)).not.toContain('Basic (and reversed card)');
+    expect(formatCanonicalCardForClipboard(card!)).not.toContain('[sound:');
   });
 });

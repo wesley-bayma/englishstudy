@@ -5,7 +5,14 @@ export interface CanonicalCard {
   back: string;
 }
 
+export function formatCanonicalCardForClipboard(card: CanonicalCard): string {
+  return `Frente:\n${card.front}\n\nVerso:\n${card.back}`;
+}
+
 const GAP_PATTERN = /\(\s*(?:_{2,}|\.{2,}\?)\s*\)|\[\s*\.{2,}\s*\]|_{2,}/g;
+const CANONICAL_GAP = /\(\.\.\?\)/g;
+const PARENTHETICAL_PATTERN = /\([^()\r\n]+\)/g;
+const ANKI_MARKUP_PATTERN = /\[sound:[^\]]+\]|<audio\b|\{\{\s*(?:frontside|front|back|c\d+::)/i;
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -25,6 +32,14 @@ function replaceTerm(sentence: string, term: string, replacement: string): strin
   return cleanSentence.replace(expression, (_match, prefix: string) => `${prefix}${replacement}`);
 }
 
+function normalizedWords(value: string): string {
+  return value
+    .toLocaleLowerCase('en-US')
+    .replace(/[^A-Za-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function primaryMeaning(translation: string): string {
   return (translation || '')
     .split(/[;,/]/)[0]
@@ -33,15 +48,11 @@ function primaryMeaning(translation: string): string {
 }
 
 function isSurvivalPhrase(sheet: StudySheet): boolean {
-  return sheet.type === 'survival_phrase' ||
-    sheet.type === 'personal_phrase' ||
-    Boolean(sheet.strategic_gap || sheet.pattern) ||
-    (sheet.grammatical_class || '').toLowerCase().includes('frase');
+  return sheet.type === 'survival_phrase' || sheet.type === 'personal_phrase';
 }
 
 function isPhrasalVerb(sheet: StudySheet): boolean {
-  return sheet.type === 'phrasal_verb' ||
-    (sheet.grammatical_class || '').toLowerCase().includes('phrasal');
+  return sheet.type === 'phrasal_verb';
 }
 
 function normalizeStrategicGap(sentence: string): string {
@@ -65,11 +76,16 @@ export function buildCanonicalCard(sheet: StudySheet): CanonicalCard | null {
     const gapCount = gap.gap_sentence.match(GAP_PATTERN)?.length || 0;
     if (gapCount !== 1) return null;
 
+    const expectedChunk = normalizedWords(gap.expected_chunk);
+    const answerSentence = normalizedWords(sheet.term);
+    if (!expectedChunk || !answerSentence.includes(expectedChunk)) return null;
+
     const translation = sheet.translation.trim();
-    return {
+    const card = {
       front: `${normalizeStrategicGap(gap.gap_sentence)}\n${translation}`.trim(),
       back: sheet.term.trim()
     };
+    return validateCanonicalCard(card.front, card.back, sheet.type).length === 0 ? card : null;
   }
 
   const example = sheet.examples?.find(item => replaceTerm(item.en, sheet.term, sheet.term));
@@ -85,12 +101,13 @@ export function buildCanonicalCard(sheet: StudySheet): CanonicalCard | null {
 
   if (!frontSentence || !backSentence || (isPhrasalVerb(sheet) && (!forms?.base || !forms.gerund || !forms.past))) return null;
 
-  return {
+  const card = {
     front: frontSentence,
     back: isPhrasalVerb(sheet)
       ? `${forms!.base.trim()} — ${forms!.gerund.trim()} — ${forms!.past.trim()}\n${backSentence}`
       : `${sheet.term.trim()} ${sheet.ipa.trim()}\n${backSentence}`
   };
+  return validateCanonicalCard(card.front, card.back, sheet.type).length === 0 ? card : null;
 }
 
 export function validateCanonicalCard(
@@ -103,23 +120,36 @@ export function validateCanonicalCard(
   const isPhrase = normalizedType === 'survival_phrase' || normalizedType === 'personal_phrase';
   const isPv = normalizedType === 'phrasal_verb';
 
+  if (ANKI_MARKUP_PATTERN.test(front) || ANKI_MARKUP_PATTERN.test(back)) {
+    issues.push('O card canônico deve conter somente texto; não inclua áudio nem campos reversos do Anki.');
+  }
+
   const gapCount = front.match(GAP_PATTERN)?.length || 0;
   const backLines = back.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
   if (isPhrase) {
     if (gapCount !== 1) issues.push('A frase de sobrevivência deve ter uma única lacuna significativa.');
-    if (!front.includes('\n')) issues.push('Inclua a tradução completa abaixo da frase na frente.');
+    const frontLines = front.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    const canonicalGapCount = front.match(CANONICAL_GAP)?.length || 0;
+    const parentheticalParts = front.match(PARENTHETICAL_PATTERN) || [];
+    if (frontLines.length !== 2 || !frontLines[1]) issues.push('Inclua somente a frase com lacuna e a tradução completa na frente.');
+    if (canonicalGapCount !== 1 || parentheticalParts.length !== 1 || parentheticalParts[0] !== '(..?)') {
+      issues.push('A lacuna deve ser normalizada exatamente como (..?).');
+    }
     if (backLines.length !== 1) issues.push('O verso da frase de sobrevivência deve conter somente a frase completa em inglês.');
+    if (backLines[0]?.match(GAP_PATTERN)) issues.push('A frase completa do verso não pode conter lacuna.');
   } else {
-    if (!front.match(/\([^()]+\)/)) issues.push('A frente precisa conter uma única pista entre parênteses.');
-    if (backLines[0]?.match(/\([^()]+\)/)) {
+    const hints = front.match(PARENTHETICAL_PATTERN) || [];
+    if (hints.length !== 1) issues.push('A frente precisa conter uma única pista entre parênteses.');
+    if (backLines[1]?.match(PARENTHETICAL_PATTERN)) {
       issues.push('A frase em inglês do verso não deve conter o termo entre parênteses.');
     }
     if (isPv) {
       if (!front.includes('PV:')) issues.push('A frente do phrasal verb deve indicar o sentido com “PV:”.');
-      if (backLines.length !== 2 || !backLines[0]?.includes(' — ')) {
+      const forms = backLines[0]?.split(' — ') || [];
+      if (backLines.length !== 2 || forms.length !== 3 || forms.some(form => !form.trim())) {
         issues.push('O verso do phrasal verb deve conter as formas base, gerúndio e passado e a frase em inglês.');
       }
-    } else if (backLines.length !== 2 || !backLines[0]?.match(/\/[^\/\n]+\//)) {
+    } else if (front.includes('PV:') || backLines.length !== 2 || !backLines[0]?.match(/\/[^\/\n]+\//)) {
       issues.push('O verso do vocabulário deve conter “termo IPA” e a frase completa em inglês.');
     }
 
@@ -140,7 +170,9 @@ export function validateStudySheet(sheet: StudySheet): string[] {
   if (survival) {
     const gap = sheet.strategic_gap;
     const gapCount = gap?.gap_sentence?.match(GAP_PATTERN)?.length || 0;
-    if (!gap || gapCount !== 1 || !gap.expected_chunk?.trim()) {
+    const expectedChunk = normalizedWords(gap?.expected_chunk || '');
+    const answerSentence = normalizedWords(sheet.term || '');
+    if (!gap || gapCount !== 1 || !expectedChunk || !answerSentence.includes(expectedChunk)) {
       issues.push('A frase de sobrevivência precisa de uma única lacuna estratégica válida.');
     }
   } else if (!sheet.examples?.some(example => replaceTerm(example.en, sheet.term, sheet.term))) {
