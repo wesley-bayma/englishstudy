@@ -129,6 +129,9 @@ export interface PhrasalVerbInfo {
 export interface StudySheet {
   term: string;
   type?: ContentType;
+  /** True when the server returned only user-provided/basic data because AI was unavailable. */
+  isFallback?: boolean;
+  fallbackMessage?: string;
   ipa: string;
   grammatical_class: string;
   translation: string;

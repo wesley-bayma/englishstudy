@@ -309,7 +309,21 @@ export function ItemDetailModal({
               </p>
             </div>
           ) : sheet ? (
-            <StudySheetView sheet={sheet} number={item.original_order || undefined} />
+            <>
+              {sheet.isFallback && (
+                <div className="p-4 bg-dark-bg rounded-2xl border border-card-amber/40 text-xs text-card-amber leading-relaxed space-y-3">
+                  <p>{sheet.fallbackMessage || 'A ficha está disponível apenas com os dados básicos informados.'}</p>
+                  <button
+                    type="button"
+                    onClick={() => setRetryNonce(value => value + 1)}
+                    className="rounded-full bg-card-lime px-4 py-2 text-xs font-black text-dark-bg hover:bg-card-limeDark transition-colors"
+                  >
+                    Tentar completar a ficha
+                  </button>
+                </div>
+              )}
+              <StudySheetView sheet={sheet} number={item.original_order || undefined} />
+            </>
           ) : sheetError ? (
             <div className="p-6 bg-dark-bg rounded-3xl border border-card-amber/30 space-y-4">
               <p className="text-xs font-mono text-card-amber leading-relaxed text-center">{sheetError}</p>

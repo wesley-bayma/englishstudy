@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { StudySheet } from '../../../../lib/types';
+import { ContentType, StudySheet } from '../../../../lib/types';
 import { DEFAULT_GEMINI_MODEL, GeminiResponseMeta, requestAiJson } from '../../../../lib/gemini-client';
 import { STUDY_SHEET_JSON_SCHEMA } from '../../../../lib/ai-schemas';
 import { validateParsedStudySheet } from '../../../../lib/ai-validation';
@@ -7,6 +7,7 @@ import { ApiServiceError, apiErrorResponse, createRequestId, getApiErrorInfo, lo
 import { assertAllowedFields, getClientAddress, optionalContentType, optionalString, parseJsonBody, requiredString } from '../../../../lib/api-validation';
 import { checkRateLimit, tryAcquireConcurrency } from '../../../../lib/rate-limit';
 import { withInFlightDeduplication } from '../../../../lib/in-flight-dedupe';
+import { buildUnavailableStudySheet } from '../../../../lib/study-sheet-fallback';
 
 // Pre-curated instant entries matching user's canonical examples
 const CURATED_SHEETS: Record<string, any> = {
@@ -324,6 +325,9 @@ export async function POST(req: NextRequest) {
   let responseMeta: GeminiResponseMeta | undefined;
   let responseLogged = false;
   let attemptedAi = false;
+  let requestedTerm = '';
+  let requestedType: ContentType = 'vocabulary';
+  let requestedMeaningPt = '';
 
   try {
     const body = await parseJsonBody(req, 16_384);
@@ -332,6 +336,9 @@ export async function POST(req: NextRequest) {
     const type = optionalContentType(body, 'type') || 'vocabulary';
     const meaningPt = optionalString(body, 'meaningPt', 500);
     const contextSentence = optionalString(body, 'contextSentence', 800);
+    requestedTerm = term;
+    requestedType = type;
+    requestedMeaningPt = meaningPt;
 
     const cleanTerm = term.toLowerCase();
     const looksLikeCompleteSentence = term.split(/\s+/).length >= 3 && /[?!.]$/.test(term);
@@ -448,8 +455,35 @@ REGRAS OBRIGATÓRIAS:
     responseLogged = true;
     return NextResponse.json({ ...result.data, type, isCurated: false }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error: unknown) {
+    const info = getApiErrorInfo(error);
+    const canShowBasicSheet = attemptedAi && [
+      'AI_NOT_CONFIGURED',
+      'UPSTREAM_AUTH',
+      'UPSTREAM_RATE_LIMIT',
+      'UPSTREAM_TIMEOUT',
+      'UPSTREAM_ERROR',
+      'INVALID_AI_RESPONSE'
+    ].includes(info.code);
+
+    if (canShowBasicSheet) {
+      console.warn(JSON.stringify({
+        event: 'ai_fallback',
+        requestId,
+        route,
+        code: info.code,
+        status: info.status
+      }));
+      return NextResponse.json({
+        ...buildUnavailableStudySheet(requestedTerm, requestedType, requestedMeaningPt)
+      }, {
+        headers: {
+          'Cache-Control': 'no-store',
+          'X-Request-ID': requestId
+        }
+      });
+    }
+
     if (attemptedAi && !responseLogged) {
-      const info = getApiErrorInfo(error);
       logAiRequest({ requestId, route, model: responseMeta?.model || process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || info.status, finishReason: responseMeta?.finishReason });
     }
     logApiFailure(requestId, route, error);

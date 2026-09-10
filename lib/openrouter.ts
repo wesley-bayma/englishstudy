@@ -163,7 +163,9 @@ export async function getStudySheetWithOpenRouter(
       }
 
       const data = await parseApiResponse<StudySheet>(res);
-      void writeCachedStudySheet(cacheId, data);
+      // A fallback is deliberately not cached: a later retry must be able to
+      // replace it with a complete provider response.
+      if (!data.isFallback) void writeCachedStudySheet(cacheId, data);
       return data;
     } catch (error) {
       console.warn('Error fetching study sheet from Gemini:', error);
