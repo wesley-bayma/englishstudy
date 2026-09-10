@@ -60,29 +60,6 @@ function resolveTimeoutMs(configuredTimeout: number, maxTimeoutMs: number, deadl
   return Math.min(configured, maxTimeoutMs, remaining);
 }
 
-const GEMINI_SCHEMA_TYPES: Record<string, string> = {
-  string: 'STRING',
-  number: 'NUMBER',
-  integer: 'INTEGER',
-  boolean: 'BOOLEAN',
-  object: 'OBJECT',
-  array: 'ARRAY',
-  null: 'NULL'
-};
-
-function toGeminiSchema(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(toGeminiSchema);
-  if (!value || typeof value !== 'object') return value;
-
-  return Object.fromEntries(Object.entries(value).map(([key, child]) => {
-    if (key === 'type') {
-      if (typeof child === 'string') return [key, GEMINI_SCHEMA_TYPES[child] || child];
-      if (Array.isArray(child)) return [key, child.map(type => typeof type === 'string' ? (GEMINI_SCHEMA_TYPES[type] || type) : type)];
-    }
-    return [key, toGeminiSchema(child)];
-  }));
-}
-
 function extractContent(payload: GeminiResponse): string {
   const content = payload.candidates?.[0]?.content?.parts
     ?.map(part => part.text || '')
@@ -130,11 +107,12 @@ export async function requestGeminiJson<T>({
   const timeoutMs = resolveTimeoutMs(configuredTimeout, maxTimeoutMs, deadlineAt);
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+  const endpoint = process.env.GEMINI_API_BASE_URL || GEMINI_ENDPOINT;
 
   try {
     let response: Response;
     try {
-      response = await fetch(`${GEMINI_ENDPOINT}/${encodeURIComponent(model)}:generateContent`, {
+      response = await fetch(`${endpoint}/${encodeURIComponent(model)}:generateContent`, {
         method: 'POST',
         headers: {
           'x-goog-api-key': apiKey,
@@ -145,7 +123,11 @@ export async function requestGeminiJson<T>({
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
           generationConfig: {
             responseMimeType: 'application/json',
-            ...(jsonSchema ? { responseSchema: toGeminiSchema(jsonSchema.schema || jsonSchema) } : {}),
+            // responseJsonSchema accepts standard JSON Schema, including nullable
+            // types such as ["string", "null"]. The older responseSchema field
+            // uses a different OpenAPI representation and was the source of
+            // provider-side schema failures for non-curated study items.
+            ...(jsonSchema ? { responseJsonSchema: jsonSchema.schema || jsonSchema } : {}),
             maxOutputTokens: maxTokens,
             temperature
           }

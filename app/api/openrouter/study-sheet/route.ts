@@ -6,6 +6,7 @@ import { validateParsedStudySheet } from '../../../../lib/ai-validation';
 import { ApiServiceError, apiErrorResponse, createRequestId, getApiErrorInfo, logAiRequest, logApiFailure } from '../../../../lib/api-errors';
 import { assertAllowedFields, getClientAddress, optionalContentType, optionalString, parseJsonBody, requiredString } from '../../../../lib/api-validation';
 import { checkRateLimit, tryAcquireConcurrency } from '../../../../lib/rate-limit';
+import { withInFlightDeduplication } from '../../../../lib/in-flight-dedupe';
 
 // Pre-curated instant entries matching user's canonical examples
 const CURATED_SHEETS: Record<string, any> = {
@@ -336,6 +337,12 @@ export async function POST(req: NextRequest) {
     const looksLikeCompleteSentence = term.split(/\s+/).length >= 3 && /[?!.]$/.test(term);
     const isSurvivalPhrase = type === 'survival_phrase' || type === 'personal_phrase' || looksLikeCompleteSentence;
     const isPhrasalVerb = type === 'phrasal_verb';
+    const studySheetKey = JSON.stringify({
+      term: term.toLowerCase(),
+      type,
+      meaningPt,
+      contextSentence
+    });
 
     // Check curated database first. Curated entries do not spend provider credits.
     if (CURATED_SHEETS[cleanTerm]) {
@@ -391,7 +398,7 @@ GERE UMA FICHA DE FRASE DE SOBREVIVÊNCIA:
 8. Mantenha todos os textos curtos e não repita a frase completa em campos opcionais. Dica de ouro ou atenção cultural/prática.`;
 
       attemptedAi = true;
-      const parsed = await requestAiJson<unknown>({
+      const parsed = await withInFlightDeduplication(studySheetKey, () => requestAiJson<unknown>({
         prompt,
         systemPrompt: 'Você é um especialista em ensino de inglês. Responda somente com JSON válido, sem markdown ou texto adicional.',
         maxTokens: 3000,
@@ -399,7 +406,7 @@ GERE UMA FICHA DE FRASE DE SOBREVIVÊNCIA:
         jsonSchema: STUDY_SHEET_JSON_SCHEMA,
         validateResponse: value => validateParsedStudySheet(value, 'survival_phrase').ok,
         onResponse: meta => { responseMeta = meta; }
-      });
+      }));
       const result = validateParsedStudySheet(parsed, 'survival_phrase');
       if (!result.ok) throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'A IA retornou uma ficha inválida.');
       logAiRequest({ requestId, route, model: responseMeta?.model || DEFAULT_GEMINI_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || 200, finishReason: responseMeta?.finishReason });
@@ -426,7 +433,7 @@ REGRAS OBRIGATÓRIAS:
   10. Responda somente JSON conforme o schema.`;
 
     attemptedAi = true;
-      const parsed = await requestAiJson<unknown>({
+    const parsed = await withInFlightDeduplication(studySheetKey, () => requestAiJson<unknown>({
       prompt,
       systemPrompt: 'Você é um professor de inglês comunicativo. Responda somente com JSON válido, sem markdown ou texto adicional.',
       maxTokens: 4000,
@@ -434,7 +441,7 @@ REGRAS OBRIGATÓRIAS:
       jsonSchema: STUDY_SHEET_JSON_SCHEMA,
       validateResponse: value => validateParsedStudySheet(value, type).ok,
       onResponse: meta => { responseMeta = meta; }
-    });
+    }));
     const result = validateParsedStudySheet(parsed, type);
     if (!result.ok) throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'A IA retornou uma ficha inválida.');
     logAiRequest({ requestId, route, model: responseMeta?.model || DEFAULT_GEMINI_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || 200, finishReason: responseMeta?.finishReason });

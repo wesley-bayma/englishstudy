@@ -25,6 +25,46 @@ Nunca coloque a chave Gemini em `NEXT_PUBLIC_*`, localStorage, código do navega
 
 O check não-pago pode ser executado com `SMOKE_TEST_URL=https://seu-deployment.vercel.app npm run smoke`. As gerações de IA são deliberadamente manuais para evitar cobrança acidental em CI.
 
+## Verificações locais sem cobrança
+
+O contrato do modelo OpenRouter pode ser verificado sem enviar uma geração:
+
+```text
+npm run verify-provider-model
+```
+
+Para stress test, inicie o mock local e o app com endpoints apontando para `127.0.0.1:4010`; nunca use essas variáveis contra um provedor pago. O harness executa 100 chamadas por endpoint, primeiro com concorrência 10 e depois com 25, impõe timeout no cliente e verifica respostas inválidas, timeout, 429, rate limit, limite de concorrência e deduplicação de ficha:
+
+# Terminal 1 — mantenha o mock rodando
+```text
+node scripts/mock-ai-provider.mjs
+```
+
+# Terminal 2 — com as variáveis abaixo no mesmo processo do app
+```text
+$env:APP_PASSWORD='stress-password'
+$env:SESSION_SECRET='local-stress-secret-with-at-least-32-characters'
+$env:GEMINI_API_KEY='mock'
+$env:OPENROUTER_API_KEY='mock'
+$env:GEMINI_API_BASE_URL='http://127.0.0.1:4010/models'
+$env:OPENROUTER_API_BASE_URL='http://127.0.0.1:4010/chat/completions'
+$env:GEMINI_TIMEOUT_MS='150'
+$env:OPENROUTER_TIMEOUT_MS='150'
+npm run build
+npm start -- -p 3100
+```
+
+# Terminal 3 — execute contra o app local
+```text
+$env:STRESS_TEST_URL='http://localhost:3100'
+$env:STRESS_PASSWORD='stress-password'
+$env:STRESS_MOCK_URL='http://localhost:4010'
+npm run stress
+$env:STRESS_CONCURRENCY='25'; npm run stress
+```
+
+Os logs estruturados `api_request_failed` e `ai_request` carregam `requestId`; ao investigar uma falha, use essa referência sem registrar chaves ou prompts sensíveis.
+
 ## Rollback
 
 Use o deployment anterior da Vercel se o canário falhar. Não execute reset do IndexedDB para corrigir deploy: o sincronismo do dataset preserva o progresso existente. Faça exportação JSON antes de qualquer operação manual de limpeza ou migração.

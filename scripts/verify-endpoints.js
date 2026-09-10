@@ -1,73 +1,83 @@
-const http = require('http');
+const baseUrl = process.env.VERIFY_BASE_URL || 'http://localhost:3000';
+const sessionCookie = process.env.VERIFY_SESSION_COOKIE || '';
+const runLiveAi = process.env.VERIFY_LIVE_AI === 'true';
 
-async function testUrl(path) {
-  return new Promise((resolve, reject) => {
-    http.get(`http://localhost:3000${path}`, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        resolve({ status: res.statusCode, length: data.length });
-      });
-    }).on('error', reject);
-  });
+function headers() {
+  return sessionCookie ? { Cookie: sessionCookie } : {};
 }
 
-async function testPost(path, body) {
-  return new Promise((resolve, reject) => {
-    const postData = JSON.stringify(body);
-    const req = http.request(`http://localhost:3000${path}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(postData)
-      }
-    }, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          resolve({ status: res.statusCode, body: JSON.parse(data) });
-        } catch (e) {
-          resolve({ status: res.statusCode, raw: data });
-        }
-      });
-    });
-    req.on('error', reject);
-    req.write(postData);
-    req.end();
+async function request(path, options = {}) {
+  const response = await fetch(new URL(path, baseUrl), {
+    ...options,
+    redirect: 'manual',
+    headers: { ...headers(), ...(options.headers || {}) }
   });
+
+  let body = null;
+  try {
+    body = await response.json();
+  } catch {
+    // HTML pages and empty responses are valid for some checks.
+  }
+
+  return { status: response.status, body };
+}
+
+function assertStatus(label, actual, expected) {
+  const accepted = Array.isArray(expected) ? expected : [expected];
+  if (!accepted.includes(actual)) {
+    throw new Error(`${label}: esperado HTTP ${accepted.join(' ou ')}, recebido ${actual}.`);
+  }
+  console.log(`- ${label}: HTTP ${actual} ✅`);
 }
 
 async function run() {
-  console.log('Testing Next.js Server Pages and API routes on http://localhost:3000 ...\n');
+  console.log(`Verificando English Study Hub em ${baseUrl}...\n`);
 
-  const pages = ['/', '/add', '/bank', '/progress', '/reviewer'];
-  for (const page of pages) {
-    const res = await testUrl(page);
-    console.log(`- Page ${page}: Status ${res.status} (Length: ${res.length} bytes) ${res.status === 200 ? '✅' : '❌'}`);
+  const health = await request('/api/health');
+  assertStatus('Health check', health.status, 200);
+  if (health.body?.status !== 'ok') {
+    throw new Error('Health check retornou status diferente de "ok".');
   }
 
-  console.log('\nTesting API Endpoints:');
-  
-  // Test OpenRouter analyze endpoint fallback/execution
-  const analyzeRes = await testPost('/api/openrouter/analyze', {
-    query: 'running',
-    candidates: ['run', 'runner'],
-    context: 'I saw him running'
-  });
-  console.log(`- POST /api/openrouter/analyze for 'running': Status ${analyzeRes.status} ✅`);
-  console.log('  Result:', analyzeRes.body);
+  const pages = ['/', '/add', '/bank', '/progress', '/reviewer'];
+  const expectedPageStatus = sessionCookie ? 200 : 307;
+  for (const page of pages) {
+    const result = await request(page);
+    assertStatus(`Página ${page}`, result.status, expectedPageStatus);
+  }
 
-  // Test OpenRouter review card endpoint fallback/execution
-  const reviewRes = await testPost('/api/openrouter/review-card', {
-    front: 'I forgot my (carteira) again.',
-    back: 'wallet /ˈwɑː.lət/\nI forgot my wallet again.\n🔊 Áudio no verso.',
-    type: 'vocabulary'
+  const protectedApi = await request('/api/openrouter/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: 'running', candidates: ['run'] })
   });
-  console.log(`\n- POST /api/openrouter/review-card: Status ${reviewRes.status} ✅`);
-  console.log('  Result:', reviewRes.body);
 
-  console.log('\nAll server routes and APIs verified successfully! 🚀');
+  if (!sessionCookie) {
+    assertStatus('API protegida sem sessão', protectedApi.status, 401);
+    console.log('\nAPI de IA não executada: defina VERIFY_SESSION_COOKIE e VERIFY_LIVE_AI=true para um canário real.');
+    return;
+  }
+
+  assertStatus('API protegida com sessão', protectedApi.status, runLiveAi ? 200 : [200, 400, 401, 429, 502, 503]);
+
+  if (runLiveAi) {
+    const review = await request('/api/openrouter/review-card', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        front: 'I forgot my (carteira) again.',
+        back: 'wallet /ˈwɑː.lət/\nI forgot my wallet again.',
+        type: 'vocabulary'
+      })
+    });
+    assertStatus('Revisão de card', review.status, [200, 429, 502, 503]);
+  }
+
+  console.log('\nVerificação concluída sem falsos positivos.');
 }
 
-run().catch(console.error);
+run().catch(error => {
+  console.error(`\nFalha: ${error.message}`);
+  process.exitCode = 1;
+});

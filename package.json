@@ -10,6 +10,8 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "smoke": "node scripts/smoke-test.mjs",
+    "verify-provider-model": "node scripts/verify-provider-model.mjs",
+    "stress": "node scripts/stress-test.mjs",
     "pre-deploy": "npm run lint && npm run type-check && npm test && npm run build"
   },
   "dependencies": {

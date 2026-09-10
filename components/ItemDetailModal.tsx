@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ContentItem, Encounter, StudySheet } from '../lib/types';
 import { getItemEncounters } from '../lib/db';
-import { getStudySheetWithOpenRouter, prefetchStudySheetWithOpenRouter } from '../lib/openrouter';
+import { ApiClientError, getStudySheetWithOpenRouter, prefetchStudySheetWithOpenRouter } from '../lib/openrouter';
 import { getNextQueueItem } from '../lib/study-navigation';
 import { StudySheetView } from './StudySheetView';
 import { 
@@ -46,6 +46,8 @@ export function ItemDetailModal({
   const [sheet, setSheet] = useState<StudySheet | null>(null);
   const [isLoadingSheet, setIsLoadingSheet] = useState(false);
   const [sheetError, setSheetError] = useState<string | null>(null);
+  const [sheetRequestId, setSheetRequestId] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [autoAdvanceFeedback, setAutoAdvanceFeedback] = useState<string | null>(null);
   const [isSavingAnki, setIsSavingAnki] = useState(false);
   const feedbackTimerRef = useRef<number | null>(null);
@@ -66,6 +68,7 @@ export function ItemDetailModal({
     setIsLoadingSheet(true);
     setSheet(null);
     setSheetError(null);
+    setSheetRequestId(null);
     getStudySheetWithOpenRouter(itemContent, itemType, itemMeaning, itemExample)
       .then(res => {
         if (!isActive) return;
@@ -78,6 +81,7 @@ export function ItemDetailModal({
         if (!isActive || err?.name === 'AbortError') return;
         console.error('Failed to load study sheet:', err);
         const detail = err instanceof Error ? err.message : '';
+        setSheetRequestId(err instanceof ApiClientError ? err.requestId : null);
         setSheetError(detail
           ? `Não foi possível gerar a ficha: ${detail}`
           : 'Não foi possível carregar a ficha deste item. Tente novamente.');
@@ -89,7 +93,7 @@ export function ItemDetailModal({
     return () => {
       isActive = false;
     };
-  }, [isOpen, itemId, itemContent, itemType, itemMeaning, itemExample]);
+  }, [isOpen, itemId, itemContent, itemType, itemMeaning, itemExample, retryNonce]);
 
   useEffect(() => {
     if (!itemId || !isOpen || readOnly) return;
@@ -305,8 +309,30 @@ export function ItemDetailModal({
           ) : sheet ? (
             <StudySheetView sheet={sheet} number={item.original_order || undefined} />
           ) : sheetError ? (
-            <div className="p-6 text-center bg-dark-bg rounded-3xl border border-card-amber/30">
-              <p className="text-xs font-mono text-card-amber leading-relaxed">{sheetError}</p>
+            <div className="p-6 bg-dark-bg rounded-3xl border border-card-amber/30 space-y-4">
+              <p className="text-xs font-mono text-card-amber leading-relaxed text-center">{sheetError}</p>
+
+              {(item.meaning_pt || item.example || item.notes) && (
+                <div className="rounded-2xl border border-dark-border bg-dark-card/50 p-4 space-y-2 text-sm">
+                  <p className="text-[10px] font-mono uppercase tracking-wider text-slate-500">Dados já salvos do item</p>
+                  {item.meaning_pt && <p><span className="font-bold text-slate-300">Tradução:</span> {item.meaning_pt}</p>}
+                  {item.example && <p><span className="font-bold text-slate-300">Contexto:</span> {item.example}</p>}
+                  {item.notes && <p><span className="font-bold text-slate-300">Observações:</span> {item.notes}</p>}
+                </div>
+              )}
+
+              <div className="flex flex-col items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRetryNonce(value => value + 1)}
+                  className="rounded-full bg-card-lime px-5 py-2.5 text-xs font-black text-dark-bg hover:bg-card-limeDark transition-colors"
+                >
+                  Tentar novamente
+                </button>
+                {sheetRequestId && (
+                  <span className="text-[10px] font-mono text-slate-500">Referência: {sheetRequestId}</span>
+                )}
+              </div>
             </div>
           ) : null}
 

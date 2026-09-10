@@ -6,6 +6,18 @@ const STUDY_SHEET_CACHE_VERSION = 'v8-pv-basic-anki-card-back-translation';
 const studySheetMemoryCache = new Map<string, StudySheet>();
 const studySheetRequests = new Map<string, Promise<StudySheet | null>>();
 
+export class ApiClientError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string | null = null,
+    public readonly status: number | null = null,
+    public readonly requestId: string | null = null
+  ) {
+    super(message);
+    this.name = 'ApiClientError';
+  }
+}
+
 function getStudySheetCacheId(
   term: string,
   type: ContentType,
@@ -57,17 +69,29 @@ async function parseApiResponse<T>(res: Response): Promise<T> {
   try {
     data = await res.json();
   } catch {
-    throw new Error(`A API retornou uma resposta inválida (HTTP ${res.status}).`);
+    throw new ApiClientError(
+      `A API retornou uma resposta inválida (HTTP ${res.status}).`,
+      'INVALID_API_RESPONSE',
+      res.status,
+      res.headers.get('X-Request-ID')
+    );
   }
 
   if (!res.ok) {
     const error = data && typeof data === 'object' && 'error' in data
-      ? (data as { error?: string | { message?: string } }).error
+      ? (data as { error?: string | { code?: string; message?: string; requestId?: string } }).error
       : undefined;
     const message = typeof error === 'string'
       ? error
       : error?.message || `A API retornou HTTP ${res.status}.`;
-    throw new Error(message);
+    throw new ApiClientError(
+      message,
+      typeof error === 'object' ? error.code || null : null,
+      res.status,
+      typeof error === 'object'
+        ? error.requestId || res.headers.get('X-Request-ID')
+        : res.headers.get('X-Request-ID')
+    );
   }
 
   return data as T;

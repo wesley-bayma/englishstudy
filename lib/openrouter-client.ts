@@ -1,7 +1,7 @@
 import { ApiServiceError } from './api-errors';
 
 const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
-export const DEFAULT_OPENROUTER_MODEL = '~deepseek/deepseek-v4-flash-latest';
+export const DEFAULT_OPENROUTER_MODEL = 'z-ai/glm-5.3-flash';
 const DEFAULT_TIMEOUT_MS = 50_000;
 const DEADLINE_SAFETY_MARGIN_MS = 1_000;
 
@@ -113,11 +113,12 @@ export async function requestOpenRouterJson<T>({
   const timeoutMs = resolveTimeoutMs(configuredTimeout, maxTimeoutMs, deadlineAt);
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const model = requestedModel || process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL;
+  const endpoint = process.env.OPENROUTER_API_BASE_URL || OPENROUTER_ENDPOINT;
 
   try {
     let response: Response;
     try {
-      response = await fetch(OPENROUTER_ENDPOINT, {
+      response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -135,6 +136,7 @@ export async function requestOpenRouterJson<T>({
           ? { type: 'json_schema', json_schema: jsonSchema }
           : { type: 'json_object' },
         ...(jsonSchema ? { provider: { require_parameters: true } } : {}),
+        ...(jsonSchema ? { plugins: [{ id: 'response-healing' }] } : {}),
         max_tokens: maxTokens,
         temperature
       }),
@@ -167,7 +169,7 @@ export async function requestOpenRouterJson<T>({
       throw new ApiServiceError('UPSTREAM_ERROR', 502, 'O provedor de IA não concluiu a solicitação.', response.status);
     }
 
-    if (finishReason === 'length') {
+    if (finishReason?.toLowerCase() === 'length') {
       throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'A resposta do provedor foi interrompida antes de concluir.');
     }
 

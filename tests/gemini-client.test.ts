@@ -4,6 +4,7 @@ import { getGeminiApiKey, requestGeminiJson } from '../lib/gemini-client';
 
 const originalFetch = globalThis.fetch;
 const originalTimeout = process.env.GEMINI_TIMEOUT_MS;
+const originalEndpoint = process.env.GEMINI_API_BASE_URL;
 const originalApiKey = process.env.GEMINI_API_KEY;
 const originalOpenRouterApiKey = process.env.OPENROUTER_API_KEY;
 
@@ -23,6 +24,8 @@ describe('Gemini client', () => {
     globalThis.fetch = originalFetch;
     if (originalTimeout === undefined) delete process.env.GEMINI_TIMEOUT_MS;
     else process.env.GEMINI_TIMEOUT_MS = originalTimeout;
+    if (originalEndpoint === undefined) delete process.env.GEMINI_API_BASE_URL;
+    else process.env.GEMINI_API_BASE_URL = originalEndpoint;
     if (originalApiKey === undefined) delete process.env.GEMINI_API_KEY;
     else process.env.GEMINI_API_KEY = originalApiKey;
     if (originalOpenRouterApiKey === undefined) delete process.env.OPENROUTER_API_KEY;
@@ -41,15 +44,25 @@ describe('Gemini client', () => {
       prompt: 'test',
       jsonSchema: {
         name: 'test',
-        schema: { type: 'object', properties: { ok: { type: 'boolean' } }, required: ['ok'], additionalProperties: false }
+        schema: {
+          type: 'object',
+          properties: {
+            ok: { type: 'boolean' },
+            optional: { type: ['string', 'null'] }
+          },
+          required: ['ok'],
+          additionalProperties: false
+        }
       }
     });
 
     expect(result).toEqual({ ok: true });
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     expect(body.generationConfig.responseMimeType).toBe('application/json');
-    expect(body.generationConfig.responseSchema.type).toBe('OBJECT');
-    expect(body.generationConfig.responseSchema.properties.ok.type).toBe('BOOLEAN');
+    expect(body.generationConfig.responseSchema).toBeUndefined();
+    expect(body.generationConfig.responseJsonSchema.type).toBe('object');
+    expect(body.generationConfig.responseJsonSchema.properties.ok.type).toBe('boolean');
+    expect(body.generationConfig.responseJsonSchema.properties.optional.type).toEqual(['string', 'null']);
     expect(fetchMock.mock.calls[0][0]).toContain('gemini-3.8-flash:generateContent');
   });
 
