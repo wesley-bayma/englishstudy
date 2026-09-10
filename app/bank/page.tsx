@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { ContentItem, ContentType, ContentSource } from '../../lib/types';
+import { CANONICAL_DATASET_TOTAL } from '../../lib/canonical-dataset';
 import { searchContentItems, toggleAnkiStatus } from '../../lib/db';
 import { ContentCard } from '../../components/ContentCard';
 import { ItemDetailModal } from '../../components/ItemDetailModal';
@@ -178,7 +179,7 @@ export default function BankPage() {
                   : 'bg-dark-bg text-slate-400 hover:text-white border border-dark-border'
               }`}
             >
-              Base (10.311)
+              Base ({CANONICAL_DATASET_TOTAL.toLocaleString('pt-BR')})
             </button>
 
             <button

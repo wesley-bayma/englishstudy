@@ -3,7 +3,7 @@ import { requestOpenRouterJson } from './openrouter-client';
 
 const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
-export const DEFAULT_OPENROUTER_FALLBACK_MODEL = 'z-ai/glm-5.3-flash';
+export const DEFAULT_OPENROUTER_FALLBACK_MODEL = 'google/gemini-2.5-flash-lite';
 const DEFAULT_TIMEOUT_MS = 50_000;
 const AI_ROUTE_DEADLINE_MS = 55_000;
 const PRIMARY_PROVIDER_MAX_MS = 12_000;

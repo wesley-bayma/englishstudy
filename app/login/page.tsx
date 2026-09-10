@@ -2,6 +2,7 @@
 
 import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { CANONICAL_DATASET_COUNTS } from '../../lib/canonical-dataset';
 import { 
   Lock, 
   KeyRound, 
@@ -90,13 +91,13 @@ function LoginForm() {
         {/* Decorative Floating Badges */}
         <div className="flex items-center justify-center gap-2 flex-wrap text-[11px] font-mono">
           <span className="px-3 py-1 rounded-full bg-[#f9a8d4] text-[#090a0f] font-bold shadow-md">
-            3.000 Palavras
+            {CANONICAL_DATASET_COUNTS.vocabulary.toLocaleString('pt-BR')} Palavras
           </span>
           <span className="px-3 py-1 rounded-full bg-[#bef264] text-[#090a0f] font-bold shadow-md">
-            100 Frases
+            {CANONICAL_DATASET_COUNTS.survival_phrase.toLocaleString('pt-BR')} Frases
           </span>
           <span className="px-3 py-1 rounded-full bg-[#fbbf24] text-[#090a0f] font-bold shadow-md">
-            150 Phrasal Verbs
+            {CANONICAL_DATASET_COUNTS.phrasal_verb.toLocaleString('pt-BR')} Phrasal Verbs
           </span>
         </div>
 

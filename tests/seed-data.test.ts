@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import seedData from '../data/seed-data.json';
+import { CANONICAL_DATASET_COUNTS, CANONICAL_DATASET_TOTAL } from '../lib/canonical-dataset';
 
 function key(value: string): string {
   return value
@@ -42,7 +43,12 @@ describe('canonical seed dataset', () => {
   });
 
   it('contains daily survival phrases and phrasal verbs', () => {
-    expect(seedData.filter(item => item.type === 'survival_phrase').length).toBeGreaterThanOrEqual(133);
-    expect(seedData.filter(item => item.type === 'phrasal_verb').length).toBeGreaterThanOrEqual(178);
+    expect(seedData.filter(item => item.type === 'survival_phrase')).toHaveLength(CANONICAL_DATASET_COUNTS.survival_phrase);
+    expect(seedData.filter(item => item.type === 'phrasal_verb')).toHaveLength(CANONICAL_DATASET_COUNTS.phrasal_verb);
+  });
+
+  it('keeps the UI dataset metadata synchronized with the checked-in seed', () => {
+    expect(seedData.filter(item => item.type === 'vocabulary')).toHaveLength(CANONICAL_DATASET_COUNTS.vocabulary);
+    expect(seedData).toHaveLength(CANONICAL_DATASET_TOTAL);
   });
 });

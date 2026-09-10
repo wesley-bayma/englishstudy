@@ -34,6 +34,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
+import { CANONICAL_DATASET_COUNTS } from '../lib/canonical-dataset';
 
 export default function TodayPage() {
   const [queue, setQueue] = useState<DailyQueue | null>(null);
@@ -412,7 +413,7 @@ export default function TodayPage() {
             </div>
           </div>
           <p className="text-[11px] text-slate-400 border-t border-dark-border pt-2">
-            📌 <strong>Regra de transição:</strong> Quando as frases (#100) e os phrasal verbs (#150) terminarem, a meta diária de {totalTarget} continuará sendo preenchida exclusivamente pelas palavras de vocabulário da sequência.
+            📌 <strong>Regra de transição:</strong> Quando as {CANONICAL_DATASET_COUNTS.survival_phrase.toLocaleString('pt-BR')} frases e os {CANONICAL_DATASET_COUNTS.phrasal_verb.toLocaleString('pt-BR')} phrasal verbs terminarem, a meta diária de {totalTarget} continuará sendo preenchida exclusivamente pelas palavras de vocabulário da sequência.
           </p>
         </div>
       )}

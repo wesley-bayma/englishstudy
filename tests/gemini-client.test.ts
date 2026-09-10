@@ -92,7 +92,7 @@ describe('Gemini client', () => {
     } satisfies Partial<ApiServiceError>);
   });
 
-  it('retries once with z-ai/glm-5.3-flash through OpenRouter when Gemini fails', async () => {
+  it('retries once with the configured structured-output model through OpenRouter when Gemini fails', async () => {
     const { requestAiJson } = await import('../lib/gemini-client');
     process.env.GEMINI_API_KEY = 'gemini-key';
     process.env.OPENROUTER_API_KEY = 'openrouter-key';
@@ -105,7 +105,7 @@ describe('Gemini client', () => {
 
     await expect(requestAiJson<{ ok: boolean }>({ prompt: 'test' })).resolves.toEqual({ ok: true });
     const fallbackBody = JSON.parse(fetchMock.mock.calls[1][1].body as string);
-    expect(fallbackBody.model).toBe('z-ai/glm-5.3-flash');
+    expect(fallbackBody.model).toBe('google/gemini-2.5-flash-lite');
     expect(fetchMock.mock.calls[1][0]).toContain('openrouter.ai');
   });
 

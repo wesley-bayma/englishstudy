@@ -10,7 +10,7 @@ Configure estas variáveis na Vercel, separadas por ambiente:
 - `GEMINI_TIMEOUT_MS`: `12000` (a rota reserva o restante da janela para o fallback).
 - `GEMINI_MODEL`: opcional; o padrão é `gemini-3.8-flash`.
 - `OPENROUTER_API_KEY`: contingência privada para o Gemini; usada somente se a geração principal falhar.
-- `OPENROUTER_FALLBACK_MODEL`: opcional; o padrão é `z-ai/glm-5.3-flash`.
+- `OPENROUTER_FALLBACK_MODEL`: opcional; o padrão é `google/gemini-2.5-flash-lite`, modelo validado com structured outputs.
 
 Nunca coloque a chave Gemini em `NEXT_PUBLIC_*`, localStorage, código do navegador ou logs.
 
@@ -19,7 +19,7 @@ Nunca coloque a chave Gemini em `NEXT_PUBLIC_*`, localStorage, código do navega
 1. Acesse `/api/health` e confirme HTTP 200 e `status: "ok"`.
 2. Confirme o header `X-EnglishHub-Release` ou o campo `release` do health check.
 3. Abra a ficha curada `cheap` e confirme que não houve chamada à IA.
-4. Gere `building`, uma frase de sobrevivência e um phrasal verb. Em caso de falha do Gemini, a tentativa única de contingência usa o modelo GLM pelo OpenRouter.
+4. Gere `building`, uma frase de sobrevivência e um phrasal verb. Em caso de falha do Gemini, a tentativa única de contingência usa o modelo configurado pelo OpenRouter.
 5. Verifique nos logs o evento `ai_request`, duração, status, modelo, `finishReason` e `requestId`.
 6. Confirme que a chave não aparece no payload da rede nem no localStorage.
 
