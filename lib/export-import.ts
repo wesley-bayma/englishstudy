@@ -47,6 +47,7 @@ export async function exportToCSV(): Promise<string> {
   const headers = [
     'id',
     'content',
+    'ipa',
     'normalized_content',
     'type',
     'source',
@@ -72,6 +73,7 @@ export async function exportToCSV(): Promise<string> {
   const rows = items.map(item => [
     escapeCSV(item.id),
     escapeCSV(item.content),
+    escapeCSV(item.ipa),
     escapeCSV(item.normalized_content),
     escapeCSV(item.type),
     escapeCSV(item.source),
@@ -232,12 +234,16 @@ export async function validateImportData(fileContent: string, format: 'json' | '
     const sourceUrl = textValue(raw.source_url);
     const meaning = textValue(raw.meaning_pt ?? raw.translation);
     const example = textValue(raw.example);
+    const rawIpa = raw.ipa ?? raw.pronunciation;
+    const ipa = textValue(rawIpa, null);
+    const hasRawIpa = rawIpa !== undefined && rawIpa !== null && rawIpa !== '';
     const baseForm = textValue(raw.base_form, content);
     const notes = textValue(raw.notes);
     if (sourceDetail === null && raw.source_detail !== undefined && raw.source_detail !== null && raw.source_detail !== '' ||
       sourceUrl === null && raw.source_url !== undefined && raw.source_url !== null && raw.source_url !== '' ||
       meaning === null && (raw.meaning_pt !== undefined || raw.translation !== undefined) ||
       example === null && raw.example !== undefined && raw.example !== null && raw.example !== '' ||
+      ipa === null && hasRawIpa ||
       baseForm === null || notes === null && raw.notes !== undefined && raw.notes !== null && raw.notes !== '') {
       report.invalid_count++;
       report.errors.push({ row: rowNum, error: 'Um dos campos de texto excede o limite permitido.', data: raw });
@@ -268,6 +274,7 @@ export async function validateImportData(fileContent: string, format: 'json' | '
       date_added: textValue(raw.date_added, new Date().toISOString()) || new Date().toISOString(),
       times_encountered: timesEncountered || 0,
       last_encountered: textValue(raw.last_encountered),
+      ipa,
       meaning_pt: meaning,
       example,
       base_form: baseForm || content,

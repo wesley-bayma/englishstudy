@@ -16,14 +16,15 @@ const TYPE_LABELS: Record<ContentType, string> = {
 export function buildUnavailableStudySheet(
   term: string,
   type: ContentType,
-  meaningPt: string
+  meaningPt: string,
+  ipa: string = ''
 ): StudySheet {
   return {
     term,
     type,
     isFallback: true,
     fallbackMessage: 'A IA está indisponível no momento. Exibimos somente os dados informados; nenhum exemplo ou informação foi inventado.',
-    ipa: 'Pronúncia pendente',
+    ipa: ipa.trim() || 'Pronúncia pendente',
     grammatical_class: `${TYPE_LABELS[type]} — classificação pendente`,
     translation: meaningPt.trim() || 'Tradução pendente',
     tip_warning: 'Ficha básica temporária. Tente novamente quando a IA estiver disponível para completar a pronúncia, o uso e os exemplos.'

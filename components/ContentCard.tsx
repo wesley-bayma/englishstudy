@@ -168,6 +168,12 @@ export function ContentCard({
             </p>
           )}
 
+          {item.ipa && (
+            <p className={`text-xs font-mono mt-1 ${theme.subText}`}>
+              IPA: {item.ipa}
+            </p>
+          )}
+
           {/* Notes if any */}
           {item.notes && (
             <p className="text-xs opacity-75 mt-1 font-mono">

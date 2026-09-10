@@ -25,4 +25,10 @@ describe('study sheet safe fallback', () => {
     expect(sheet.strategic_gap).toBeUndefined();
     expect(sheet.variations).toBeUndefined();
   });
+
+  it('preserves a user-provided IPA during provider fallback', () => {
+    const sheet = buildUnavailableStudySheet('regular', 'vocabulary', 'regular, comum', '/ˈreɡ.jə.lɚ/');
+
+    expect(sheet.ipa).toBe('/ˈreɡ.jə.lɚ/');
+  });
 });

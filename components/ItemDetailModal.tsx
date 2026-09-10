@@ -56,6 +56,7 @@ export function ItemDetailModal({
   const itemType = item?.type || 'vocabulary';
   const itemMeaning = item?.meaning_pt || '';
   const itemExample = item?.example || '';
+  const itemIpa = item?.ipa || '';
 
   useEffect(() => {
     if (!itemId || !isOpen) return;
@@ -71,7 +72,7 @@ export function ItemDetailModal({
     setSheet(null);
     setSheetError(null);
     setSheetRequestId(null);
-    getStudySheetWithOpenRouter(itemContent, itemType, itemMeaning, itemExample)
+    getStudySheetWithOpenRouter(itemContent, itemType, itemMeaning, itemExample, itemIpa)
       .then(res => {
         if (!isActive) return;
         setSheet(res);
@@ -95,7 +96,7 @@ export function ItemDetailModal({
     return () => {
       isActive = false;
     };
-  }, [isOpen, itemId, itemContent, itemType, itemMeaning, itemExample, retryNonce]);
+  }, [isOpen, itemId, itemContent, itemType, itemMeaning, itemExample, itemIpa, retryNonce]);
 
   useEffect(() => {
     if (!itemId || !isOpen || readOnly) return;
@@ -106,7 +107,8 @@ export function ItemDetailModal({
       nextQueueItem.content,
       nextQueueItem.type,
       nextQueueItem.meaning_pt || '',
-      nextQueueItem.example || ''
+      nextQueueItem.example || '',
+      nextQueueItem.ipa || ''
     );
   }, [isOpen, itemId, readOnly, queueItems]);
 

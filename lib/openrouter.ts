@@ -2,7 +2,7 @@ import { AIAnalysisResult, CardReviewResult, ContentType, StudySheet, StudySheet
 import { getDB } from './db';
 import { parseStudySheet } from './ai-validation';
 
-const STUDY_SHEET_CACHE_VERSION = 'v8-pv-basic-anki-card-back-translation';
+const STUDY_SHEET_CACHE_VERSION = 'v9-item-ipa';
 const studySheetMemoryCache = new Map<string, StudySheet>();
 const studySheetRequests = new Map<string, Promise<StudySheet | null>>();
 
@@ -22,13 +22,15 @@ function getStudySheetCacheId(
   term: string,
   type: ContentType,
   meaningPt: string,
-  contextSentence: string
+  contextSentence: string,
+  ipa: string
 ): string {
   return `${STUDY_SHEET_CACHE_VERSION}:${encodeURIComponent(JSON.stringify([
     term.trim(),
     type,
     meaningPt.trim(),
-    contextSentence.trim()
+    contextSentence.trim(),
+    ipa.trim()
   ]))}`;
 }
 
@@ -136,9 +138,10 @@ export async function getStudySheetWithOpenRouter(
   term: string,
   type: ContentType = 'vocabulary',
   meaningPt: string = '',
-  contextSentence: string = ''
+  contextSentence: string = '',
+  ipa: string = ''
 ): Promise<StudySheet | null> {
-  const cacheId = getStudySheetCacheId(term, type, meaningPt, contextSentence);
+  const cacheId = getStudySheetCacheId(term, type, meaningPt, contextSentence, ipa);
   const cached = await readCachedStudySheet(cacheId);
   if (cached) return cached;
 
@@ -154,7 +157,8 @@ export async function getStudySheetWithOpenRouter(
           term,
           type,
           meaningPt,
-          contextSentence
+          contextSentence,
+          ipa
         }),
       });
 
@@ -187,9 +191,10 @@ export function prefetchStudySheetWithOpenRouter(
   term: string,
   type: ContentType = 'vocabulary',
   meaningPt: string = '',
-  contextSentence: string = ''
+  contextSentence: string = '',
+  ipa: string = ''
 ): void {
-  void getStudySheetWithOpenRouter(term, type, meaningPt, contextSentence).catch(error => {
+  void getStudySheetWithOpenRouter(term, type, meaningPt, contextSentence, ipa).catch(error => {
     console.warn('Study sheet prefetch skipped:', error);
   });
 }

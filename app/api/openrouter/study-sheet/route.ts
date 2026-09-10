@@ -105,6 +105,27 @@ const CURATED_SHEETS: Record<string, any> = {
     related_words: ['earn (ganhar dinheiro)', 'earnings (ganhos)', 'salary (salário)', 'wage (salário/pagamento)'],
     tip_warning: '💡 Não confunda: income é mais amplo que salary. Seu salary pode ser uma fonte de income.'
   },
+  regular: {
+    term: 'regular',
+    type: 'vocabulary',
+    ipa: '/ˈreɡ.jə.lɚ/',
+    grammatical_class: 'adjetivo',
+    translation: 'regular, comum, habitual',
+    connotation_usage: 'regular descreve algo que acontece com frequência ou segue um padrão. O significado exato depende do contexto.',
+    useful_structures: ['regular + substantivo: a regular customer', 'be + regular: The meetings are regular.'],
+    collocations: [
+      { en: 'regular customer', pt: 'cliente habitual' },
+      { en: 'regular exercise', pt: 'exercício regular' },
+      { en: 'regular checkup', pt: 'check-up de rotina' }
+    ],
+    examples: [
+      { en: 'I have a regular checkup every year.', pt: 'Eu faço um check-up de rotina todos os anos.' },
+      { en: 'She is a regular customer at this café.', pt: 'Ela é uma cliente habitual neste café.' },
+      { en: 'Regular exercise can improve your health.', pt: 'Exercícios regulares podem melhorar sua saúde.' }
+    ],
+    related_words: ['regularly (regularmente)', 'routine (rotina)', 'usual (habitual)'],
+    tip_warning: '💡 regular pode significar “habitual”, “de rotina” ou “que segue um padrão”; confira o substantivo que vem depois.'
+  },
   feel: {
     term: 'feel',
     type: 'vocabulary',
@@ -311,6 +332,25 @@ const CURATED_SHEETS: Record<string, any> = {
       explanation: 'Esconde o item específico do pedido mantendo a estrutura de cortesia intacta.'
     },
     tip_warning: "💡 I'd like é a contração de I would like (eu gostaria). É a forma padrão internacional de pedir qualquer coisa com elegância."
+  },
+  'can i get a receipt, please?': {
+    term: 'Can I get a receipt, please?',
+    type: 'survival_phrase',
+    ipa: '/kæn aɪ ɡet ə rɪˈsiːt pliːz/',
+    grammatical_class: 'frase de sobrevivência',
+    translation: 'Posso receber um recibo, por favor?',
+    connotation_usage: 'Use esta frase em lojas, restaurantes, hotéis e táxis quando precisar do comprovante da compra.',
+    pattern: 'Can I get + [ITEM / SERVIÇO], please?',
+    variations: [
+      { en: 'Can I get an itemized receipt, please?', pt: 'Posso receber um recibo detalhado, por favor?' },
+      { en: 'Could I have a receipt, please?', pt: 'Eu poderia receber um recibo, por favor?' }
+    ],
+    strategic_gap: {
+      gap_sentence: 'Can I get (_____), please?',
+      expected_chunk: 'a receipt',
+      explanation: 'Esconde o item solicitado, mantendo a estrutura educada de pedido.'
+    },
+    tip_warning: '💡 Could I have... soa um pouco mais formal; as duas formas são naturais e educadas.'
   }
 };
 
@@ -328,17 +368,20 @@ export async function POST(req: NextRequest) {
   let requestedTerm = '';
   let requestedType: ContentType = 'vocabulary';
   let requestedMeaningPt = '';
+  let requestedIpa = '';
 
   try {
     const body = await parseJsonBody(req, 16_384);
-    assertAllowedFields(body, ['term', 'type', 'meaningPt', 'contextSentence']);
+    assertAllowedFields(body, ['term', 'type', 'meaningPt', 'contextSentence', 'ipa']);
     const term = requiredString(body, 'term', { max: 200 });
     const type = optionalContentType(body, 'type') || 'vocabulary';
     const meaningPt = optionalString(body, 'meaningPt', 500);
     const contextSentence = optionalString(body, 'contextSentence', 800);
+    const providedIpa = optionalString(body, 'ipa', 200);
     requestedTerm = term;
     requestedType = type;
     requestedMeaningPt = meaningPt;
+    requestedIpa = providedIpa;
 
     const cleanTerm = term.toLowerCase();
     const looksLikeCompleteSentence = term.split(/\s+/).length >= 3 && /[?!.]$/.test(term);
@@ -348,13 +391,15 @@ export async function POST(req: NextRequest) {
       term: term.toLowerCase(),
       type,
       meaningPt,
-      contextSentence
+      contextSentence,
+      ipa: providedIpa
     });
 
     // Check curated database first. Curated entries do not spend provider credits.
     if (CURATED_SHEETS[cleanTerm]) {
       return NextResponse.json({
         ...CURATED_SHEETS[cleanTerm],
+        ...(providedIpa ? { ipa: providedIpa } : {}),
         isCurated: true
       }, { headers: { 'Cache-Control': 'private, max-age=300' } });
     }
@@ -390,6 +435,7 @@ export async function POST(req: NextRequest) {
       const prompt = `Você é um especialista em ensino de inglês comunicativo focado em Frases de Sobrevivência para o Anki.
 Analise a FRASE DE SOBREVIVÊNCIA COMPLETA: "${term}".
 Tradução sugerida: "${meaningPt}".
+IPA já informado pelo usuário, se houver: "${providedIpa}".
 
 REGRA ABSOLUTA:
 Esta é uma FRASE COMPLETA. NUNCA a trate como palavra isolada nem a encaixe dentro de outras frases (proibido coisas como "need + frase" ou "use + frase").
@@ -418,7 +464,7 @@ GERE UMA FICHA DE FRASE DE SOBREVIVÊNCIA:
       if (!result.ok) throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'A IA retornou uma ficha inválida.');
       logAiRequest({ requestId, route, model: responseMeta?.model || DEFAULT_GEMINI_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || 200, finishReason: responseMeta?.finishReason });
       responseLogged = true;
-      return NextResponse.json({ ...result.data, type: 'survival_phrase', isCurated: false }, { headers: { 'Cache-Control': 'no-store' } });
+      return NextResponse.json({ ...result.data, ipa: providedIpa || result.data.ipa, type: 'survival_phrase', isCurated: false }, { headers: { 'Cache-Control': 'no-store' } });
     }
 
     // 2. VOCABULARY & PHRASAL VERBS HANDLER
@@ -426,6 +472,7 @@ GERE UMA FICHA DE FRASE DE SOBREVIVÊNCIA:
 Analise "${term}" como ${isPhrasalVerb ? 'PHRASAL VERB' : 'VOCABULÁRIO'}.
 Tradução sugerida pelo aluno: "${meaningPt}".
 Contexto fornecido pelo aluno, se houver: "${contextSentence}".
+IPA já informado pelo usuário, se houver: "${providedIpa}".
 
 REGRAS OBRIGATÓRIAS:
 1. Classifique internamente a entrada antes de gerar. Uma frase completa nunca pode ser tratada como palavra, colocação ou substantivo.
@@ -453,7 +500,7 @@ REGRAS OBRIGATÓRIAS:
     if (!result.ok) throw new ApiServiceError('INVALID_AI_RESPONSE', 502, 'A IA retornou uma ficha inválida.');
     logAiRequest({ requestId, route, model: responseMeta?.model || DEFAULT_GEMINI_MODEL, durationMs: Date.now() - startedAt, status: responseMeta?.status || 200, finishReason: responseMeta?.finishReason });
     responseLogged = true;
-    return NextResponse.json({ ...result.data, type, isCurated: false }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ ...result.data, ipa: providedIpa || result.data.ipa, type, isCurated: false }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error: unknown) {
     const info = getApiErrorInfo(error);
     const canShowBasicSheet = attemptedAi && [
@@ -474,7 +521,7 @@ REGRAS OBRIGATÓRIAS:
         status: info.status
       }));
       return NextResponse.json({
-        ...buildUnavailableStudySheet(requestedTerm, requestedType, requestedMeaningPt)
+        ...buildUnavailableStudySheet(requestedTerm, requestedType, requestedMeaningPt, requestedIpa)
       }, {
         headers: {
           'Cache-Control': 'no-store',

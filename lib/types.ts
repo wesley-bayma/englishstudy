@@ -21,6 +21,8 @@ export type AnkiStatus = 'not_created' | 'created';
 export interface ContentItem {
   id: string;
   content: string;
+  /** Optional user/source-provided IPA; generated study sheets still require their own IPA. */
+  ipa?: string | null;
   normalized_content: string;
   type: ContentType;
   source: ContentSource;

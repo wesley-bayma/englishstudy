@@ -80,6 +80,7 @@ function mergeLegacyContentItem(current: ContentItem, legacy: ContentItem): Cont
         : current.anki_created_at,
     times_encountered: Math.max(current.times_encountered || 0, legacy.times_encountered || 0),
     last_encountered: latestIsoDate(current.last_encountered, legacy.last_encountered),
+    ipa: current.ipa || legacy.ipa || null,
     meaning_pt: current.meaning_pt || legacy.meaning_pt,
     example: current.example || legacy.example,
     base_form: current.base_form || legacy.base_form,
@@ -215,6 +216,7 @@ async function initializeDatabase(): Promise<number> {
     const seedData = await loadCanonicalSeed();
     const formattedSeeds: ContentItem[] = (seedData as any[]).map(item => ({
       ...item,
+      ipa: typeof item.ipa === 'string' && item.ipa.trim() ? item.ipa.trim() : null,
       // Always derive this value from the visible content. Older seed exports
       // used a different phrase normalizer and made exact/contains search fail.
       normalized_content: normalizeContent(item.content),
@@ -455,6 +457,7 @@ export async function addInboxItem(data: {
   notes?: string | null;
   meaning_pt?: string | null;
   example?: string | null;
+  ipa?: string | null;
   base_form?: string | null;
 }): Promise<ContentItem> {
   const db = getDB();
@@ -476,6 +479,7 @@ export async function addInboxItem(data: {
     date_added: now,
     times_encountered: 1, // First encounter when added
     last_encountered: now,
+    ipa: data.ipa?.trim() || null,
     meaning_pt: data.meaning_pt || null,
     example: data.context_sentence || data.example || null,
     base_form: data.base_form || data.content.trim(),

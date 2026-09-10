@@ -47,6 +47,7 @@ export default function AddPage() {
   const [sourceUrl, setSourceUrl] = useState('');
   const [contextSentence, setContextSentence] = useState('');
   const [meaningPt, setMeaningPt] = useState('');
+  const [ipa, setIpa] = useState('');
   const [notes, setNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -168,6 +169,7 @@ export default function AddPage() {
         context_sentence: contextSentence.trim() || null,
         notes: notes.trim() || null,
         meaning_pt: meaningPt.trim() || null,
+        ipa: ipa.trim() || null,
         example: contextSentence.trim() || null,
         base_form: aiMatch?.base_form || query.trim()
       });
@@ -183,6 +185,7 @@ export default function AddPage() {
       setTimestampMarker('');
       setSourceUrl('');
       setMeaningPt('');
+      setIpa('');
       setNotes('');
     } catch (err) {
       console.error('Failed to save to inbox:', err);
@@ -364,6 +367,21 @@ export default function AddPage() {
               onChange={(e) => setMeaningPt(e.target.value)}
               className="w-full px-4 py-3 rounded-2xl bg-dark-bg border border-dark-border text-white text-sm focus:outline-none focus:border-card-lime"
             />
+          </div>
+
+          {/* Context */}
+          <div>
+            <label className="block text-xs font-mono font-bold text-slate-300 uppercase tracking-wider mb-1">
+              Pronúncia IPA <span className="text-slate-500 normal-case">(opcional)</span>
+            </label>
+            <input
+              type="text"
+              placeholder="Ex: /ˈɔː.kwərd/"
+              value={ipa}
+              onChange={(e) => setIpa(e.target.value)}
+              className="w-full px-4 py-3 rounded-2xl bg-dark-bg border border-dark-border text-white text-sm font-mono focus:outline-none focus:border-card-lime"
+            />
+            <p className="text-[11px] text-slate-500 mt-1.5">Se preenchido, será preservado e usado mesmo durante um fallback da IA.</p>
           </div>
 
           {/* Context */}

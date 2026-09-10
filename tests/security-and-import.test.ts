@@ -57,4 +57,13 @@ describe('safe imports', () => {
     expect(count).toBe(0);
     expect((await db.content_items.get('existing'))?.meaning_pt).toBe('original');
   });
+
+  it('accepts and preserves IPA during JSON import', async () => {
+    const report = await validateImportData(JSON.stringify([{
+      id: 'ipa-item', content: 'regular', source: 'base', ipa: '/ˈreɡ.jə.lɚ/'
+    }]), 'json');
+
+    expect(report.valid_count).toBe(1);
+    expect(report.valid_items[0].ipa).toBe('/ˈreɡ.jə.lɚ/');
+  });
 });
