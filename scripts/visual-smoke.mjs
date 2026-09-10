@@ -21,8 +21,10 @@ async function openItem(term) {
   await page.goto(`${baseUrl}/bank`, { waitUntil: 'domcontentloaded' });
   const search = page.getByPlaceholder('Buscar palavra, frase, phrasal verb ou significado...');
   await search.fill(term);
-  await page.waitForTimeout(400);
-  const card = page.locator('div.relative').filter({ has: page.getByText(term, { exact: true }) }).first();
+  const visibleTerm = page.getByText(term, { exact: true }).first();
+  await visibleTerm.waitFor({ state: 'visible', timeout: 60_000 });
+  const card = page.locator('div.relative').filter({ has: visibleTerm }).first();
+  await card.waitFor({ state: 'visible', timeout: 60_000 });
   await card.getByRole('button', { name: 'Ficha' }).click({ timeout: 60_000 });
   await page.locator('div.fixed.inset-0').waitFor({ state: 'visible' });
   await page.waitForTimeout(500);
