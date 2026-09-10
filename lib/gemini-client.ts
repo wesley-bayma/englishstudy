@@ -5,9 +5,9 @@ const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
 export const DEFAULT_OPENROUTER_FALLBACK_MODEL = 'z-ai/glm-5.3-flash';
 const DEFAULT_TIMEOUT_MS = 50_000;
-const AI_ROUTE_DEADLINE_MS = 52_000;
-const PRIMARY_PROVIDER_MAX_MS = 30_000;
-const FALLBACK_PROVIDER_MAX_MS = 35_000;
+const AI_ROUTE_DEADLINE_MS = 55_000;
+const PRIMARY_PROVIDER_MAX_MS = 12_000;
+const FALLBACK_PROVIDER_MAX_MS = 42_000;
 const DEADLINE_SAFETY_MARGIN_MS = 1_000;
 
 export function getGeminiApiKey(): string {
@@ -105,36 +105,45 @@ export async function requestGeminiJson<T>({
   const controller = new AbortController();
   const configuredTimeout = Number(process.env.GEMINI_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
   const timeoutMs = resolveTimeoutMs(configuredTimeout, maxTimeoutMs, deadlineAt);
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let rejectTimeout!: (reason?: unknown) => void;
+  const timeoutGuard = new Promise<never>((_, reject) => { rejectTimeout = reject; });
+  const timeout = setTimeout(() => {
+    controller.abort();
+    rejectTimeout(new ApiServiceError('UPSTREAM_TIMEOUT', 504, 'A geração demorou demais. Tente novamente.'));
+  }, timeoutMs);
   const model = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
   const endpoint = process.env.GEMINI_API_BASE_URL || GEMINI_ENDPOINT;
 
   try {
     let response: Response;
     try {
-      response = await fetch(`${endpoint}/${encodeURIComponent(model)}:generateContent`, {
-        method: 'POST',
-        headers: {
-          'x-goog-api-key': apiKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            // responseJsonSchema accepts standard JSON Schema, including nullable
-            // types such as ["string", "null"]. The older responseSchema field
-            // uses a different OpenAPI representation and was the source of
-            // provider-side schema failures for non-curated study items.
-            ...(jsonSchema ? { responseJsonSchema: jsonSchema.schema || jsonSchema } : {}),
-            maxOutputTokens: maxTokens,
-            temperature
-          }
+      response = await Promise.race([
+        fetch(`${endpoint}/${encodeURIComponent(model)}:generateContent`, {
+          method: 'POST',
+          headers: {
+            'x-goog-api-key': apiKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              // responseJsonSchema accepts standard JSON Schema, including nullable
+              // types such as ["string", "null"]. The older responseSchema field
+              // uses a different OpenAPI representation and was the source of
+              // provider-side schema failures for non-curated study items.
+              ...(jsonSchema ? { responseJsonSchema: jsonSchema.schema || jsonSchema } : {}),
+              maxOutputTokens: maxTokens,
+              temperature
+            }
+          }),
+          signal: controller.signal
         }),
-        signal: controller.signal
-      });
+        timeoutGuard
+      ]);
     } catch (error) {
+      if (error instanceof ApiServiceError) throw error;
       if (error instanceof Error && error.name === 'AbortError') {
         throw new ApiServiceError('UPSTREAM_TIMEOUT', 504, 'A geração demorou demais. Tente novamente.');
       }

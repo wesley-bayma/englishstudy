@@ -129,7 +129,7 @@ describe('Gemini client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('does not start a fallback after the shared 52-second request deadline has elapsed', async () => {
+  it('does not start a fallback after the shared 55-second request deadline has elapsed', async () => {
     const { requestAiJson } = await import('../lib/gemini-client');
     process.env.GEMINI_API_KEY = 'gemini-key';
     process.env.OPENROUTER_API_KEY = 'openrouter-key';
@@ -138,7 +138,7 @@ describe('Gemini client', () => {
     vi.spyOn(Date, 'now')
       .mockReturnValueOnce(0)
       .mockReturnValueOnce(0)
-      .mockReturnValueOnce(52_000);
+      .mockReturnValueOnce(55_000);
 
     await expect(requestAiJson({ prompt: 'test' })).rejects.toMatchObject({
       code: 'UPSTREAM_TIMEOUT',
@@ -147,7 +147,7 @@ describe('Gemini client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('cuts off Gemini after 30 seconds and allows the fallback to use the remaining route budget', async () => {
+  it('cuts off Gemini after 12 seconds and allows the fallback to use the remaining route budget', async () => {
     const { requestAiJson } = await import('../lib/gemini-client');
     process.env.GEMINI_API_KEY = 'gemini-key';
     process.env.OPENROUTER_API_KEY = 'openrouter-key';
@@ -162,7 +162,26 @@ describe('Gemini client', () => {
     globalThis.fetch = fetchMock;
 
     const result = requestAiJson<{ ok: boolean }>({ prompt: 'test' });
-    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(12_000);
+
+    await expect(result).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('forces the fallback even when the primary fetch ignores AbortController', async () => {
+    const { requestAiJson } = await import('../lib/gemini-client');
+    process.env.GEMINI_API_KEY = 'gemini-key';
+    process.env.OPENROUTER_API_KEY = 'openrouter-key';
+    vi.useFakeTimers();
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(() => new Promise(() => {}))
+      .mockResolvedValueOnce(response({
+        choices: [{ message: { content: '{"ok":true}' }, finish_reason: 'stop' }]
+      }));
+    globalThis.fetch = fetchMock;
+
+    const result = requestAiJson<{ ok: boolean }>({ prompt: 'test' });
+    await vi.advanceTimersByTimeAsync(12_000);
 
     await expect(result).resolves.toEqual({ ok: true });
     expect(fetchMock).toHaveBeenCalledTimes(2);

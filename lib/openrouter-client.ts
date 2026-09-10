@@ -111,38 +111,47 @@ export async function requestOpenRouterJson<T>({
   const controller = new AbortController();
   const configuredTimeout = Number(process.env.OPENROUTER_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
   const timeoutMs = resolveTimeoutMs(configuredTimeout, maxTimeoutMs, deadlineAt);
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let rejectTimeout!: (reason?: unknown) => void;
+  const timeoutGuard = new Promise<never>((_, reject) => { rejectTimeout = reject; });
+  const timeout = setTimeout(() => {
+    controller.abort();
+    rejectTimeout(new ApiServiceError('UPSTREAM_TIMEOUT', 504, 'A geração demorou demais. Tente novamente.'));
+  }, timeoutMs);
   const model = requestedModel || process.env.OPENROUTER_MODEL || DEFAULT_OPENROUTER_MODEL;
   const endpoint = process.env.OPENROUTER_API_BASE_URL || OPENROUTER_ENDPOINT;
 
   try {
     let response: Response;
     try {
-      response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'https://english-bayma.vercel.app',
-        'X-Title': 'English Study Hub'
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: prompt }
-        ],
-        response_format: jsonSchema
-          ? { type: 'json_schema', json_schema: jsonSchema }
-          : { type: 'json_object' },
-        ...(jsonSchema ? { provider: { require_parameters: true } } : {}),
-        ...(jsonSchema ? { plugins: [{ id: 'response-healing' }] } : {}),
-        max_tokens: maxTokens,
-        temperature
-      }),
-      signal: controller.signal
-      });
+      response = await Promise.race([
+        fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'https://english-bayma.vercel.app',
+            'X-Title': 'English Study Hub'
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: prompt }
+            ],
+            response_format: jsonSchema
+              ? { type: 'json_schema', json_schema: jsonSchema }
+              : { type: 'json_object' },
+            ...(jsonSchema ? { provider: { require_parameters: true } } : {}),
+            ...(jsonSchema ? { plugins: [{ id: 'response-healing' }] } : {}),
+            max_tokens: maxTokens,
+            temperature
+          }),
+          signal: controller.signal
+        }),
+        timeoutGuard
+      ]);
     } catch (error) {
+      if (error instanceof ApiServiceError) throw error;
       if (error instanceof Error && error.name === 'AbortError') {
         throw new ApiServiceError('UPSTREAM_TIMEOUT', 504, 'A geração demorou demais. Tente novamente.');
       }
