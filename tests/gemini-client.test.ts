@@ -84,7 +84,7 @@ describe('Gemini client', () => {
     process.env.GEMINI_TIMEOUT_MS = '5';
     globalThis.fetch = vi.fn((_input, init) => new Promise((_resolve, reject) => {
       init?.signal?.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
-    }));
+    })) as unknown as typeof fetch;
 
     await expect(requestGeminiJson({ apiKey: 'test', prompt: 'test' })).rejects.toMatchObject({
       code: 'UPSTREAM_TIMEOUT',

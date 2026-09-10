@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getStudyHubStats } from '../../lib/db';
 import { exportToJSON, exportToCSV, validateImportData, commitImport, ImportValidationReport, MAX_IMPORT_BYTES } from '../../lib/export-import';
 import {
@@ -39,12 +39,7 @@ export default function ProgressPage() {
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadStats();
-    setDailyCardGoalInput(String(getDailyCardGoal()));
-  }, []);
-
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getStudyHubStats();
@@ -54,7 +49,13 @@ export default function ProgressPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // Initial IndexedDB synchronization is intentionally started on mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadStats();
+  }, [loadStats]);
 
   const handleSaveDailyGoal = (e: React.FormEvent) => {
     e.preventDefault();

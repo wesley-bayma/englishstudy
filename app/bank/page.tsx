@@ -60,6 +60,9 @@ export default function BankPage() {
   }, [query, sourceFilter, typeFilter, ankiFilter, onlyEncountered, page]);
 
   useEffect(() => {
+    // This effect synchronizes IndexedDB results with the current filters.
+    // The async loader owns the loading state while the request is in flight.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchItems();
   }, [fetchItems]);
 

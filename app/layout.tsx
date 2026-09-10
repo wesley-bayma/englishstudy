@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import './globals.css';
 import { Navbar } from '../components/Navbar';
 import { initDatabase } from '../lib/db';
@@ -10,9 +11,11 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+
   useEffect(() => {
-    initDatabase();
-  }, []);
+    if (pathname !== '/login') void initDatabase();
+  }, [pathname]);
 
   return (
     <html lang="pt-BR" className="dark">

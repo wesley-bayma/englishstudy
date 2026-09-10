@@ -215,7 +215,9 @@ async function initializeDatabase(): Promise<number> {
     const seedData = await loadCanonicalSeed();
     const formattedSeeds: ContentItem[] = (seedData as any[]).map(item => ({
       ...item,
-      normalized_content: item.normalized_content || normalizeContent(item.content),
+      // Always derive this value from the visible content. Older seed exports
+      // used a different phrase normalizer and made exact/contains search fail.
+      normalized_content: normalizeContent(item.content),
       times_encountered: item.times_encountered || 0,
       anki_status: (item.anki_status as AnkiStatus) || 'not_created',
       date_added: item.date_added || new Date().toISOString()
@@ -240,10 +242,14 @@ async function initializeDatabase(): Promise<number> {
       const missingSeeds = formattedSeeds.filter(
         seed => seed.source === 'base' && !existingBaseIds.has(seed.id)
       );
+      const normalizedExistingItems = existingBaseItems
+        .filter(item => item.normalized_content !== normalizeContent(item.content))
+        .map(item => ({ ...item, normalized_content: normalizeContent(item.content) }));
+      const recordsToWrite = [...missingSeeds, ...normalizedExistingItems];
 
       const chunkSize = 5000;
-      for (let i = 0; i < missingSeeds.length; i += chunkSize) {
-        const chunk = missingSeeds.slice(i, i + chunkSize);
+      for (let i = 0; i < recordsToWrite.length; i += chunkSize) {
+        const chunk = recordsToWrite.slice(i, i + chunkSize);
         await db.content_items.bulkPut(chunk);
       }
       initializedCount = count + missingSeeds.length;

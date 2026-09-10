@@ -65,6 +65,8 @@ export function ItemDetailModal({
     getItemEncounters(itemId).then(result => {
       if (isActive) setEncounters(result);
     });
+    // Reset the modal's async resource state whenever the selected item changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoadingSheet(true);
     setSheet(null);
     setSheetError(null);
